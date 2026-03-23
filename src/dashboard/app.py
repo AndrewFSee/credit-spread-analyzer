@@ -78,7 +78,7 @@ def _synthetic_demo_data(start: str, end: str) -> pd.DataFrame:
     df["sp500"] = 1000 * np.cumprod(1 + rng.normal(0.0004, 0.01, n))
     df["sp500_return"] = np.log(df["sp500"] / df["sp500"].shift(1))
     df["fed_funds"] = np.clip(2 + np.cumsum(rng.normal(0, 0.02, n)), 0, 8)
-    return df.fillna(method="ffill").dropna()
+    return df.ffill().dropna()
 
 
 if refresh:

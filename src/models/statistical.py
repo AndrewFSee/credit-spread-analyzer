@@ -107,7 +107,7 @@ def compute_irf(
         IRF object with ``.irfs`` attribute (shape: periods × k × k).
     """
     irf = var_result.irf(periods=periods)
-    logger.info("IRF computed for %d periods, %d variables.", periods, var_result.k_ar)
+    logger.info("IRF computed for %d periods, %d variables.", periods, len(var_result.model.names))
     return irf
 
 
