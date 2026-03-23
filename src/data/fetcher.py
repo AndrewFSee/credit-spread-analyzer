@@ -15,6 +15,16 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+try:
+    from fredapi import Fred  # type: ignore
+except ImportError:
+    Fred = None  # type: ignore
+
+try:
+    import yfinance as yf  # type: ignore
+except ImportError:
+    yf = None  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 # Default series / tickers (can be overridden via arguments)
@@ -67,10 +77,8 @@ def fetch_fred_data(
     pd.DataFrame
         Daily DataFrame indexed by date, one column per series.
     """
-    try:
-        from fredapi import Fred  # type: ignore
-    except ImportError as exc:
-        raise ImportError("fredapi is required: pip install fredapi") from exc
+    if Fred is None:
+        raise ImportError("fredapi is required: pip install fredapi")
 
     if series is None:
         series = _FRED_SERIES
@@ -119,10 +127,8 @@ def fetch_yahoo_data(
     pd.DataFrame
         Daily DataFrame indexed by date with price and return columns.
     """
-    try:
-        import yfinance as yf  # type: ignore
-    except ImportError as exc:
-        raise ImportError("yfinance is required: pip install yfinance") from exc
+    if yf is None:
+        raise ImportError("yfinance is required: pip install yfinance")
 
     if tickers is None:
         tickers = _YAHOO_TICKERS

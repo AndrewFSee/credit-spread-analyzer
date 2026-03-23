@@ -6,7 +6,7 @@ All external API calls are mocked so the tests run without credentials.
 
 from __future__ import annotations
 
-import io
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -125,7 +125,7 @@ class TestFetchAllData(unittest.TestCase):
     @patch("src.data.fetcher.fetch_yahoo_data")
     @patch("src.data.fetcher.fetch_fred_data")
     def test_fetch_all_data_merges_correctly(
-        self, mock_fred: MagicMock, mock_yahoo: MagicMock, tmp_path: Path
+        self, mock_fred: MagicMock, mock_yahoo: MagicMock
     ) -> None:
         """fetch_all_data should merge FRED and Yahoo DataFrames on the date index."""
         from src.data.fetcher import fetch_all_data
@@ -133,12 +133,13 @@ class TestFetchAllData(unittest.TestCase):
         mock_fred.return_value = self._make_fred_df()
         mock_yahoo.return_value = self._make_yahoo_df()
 
-        result = fetch_all_data(
-            start_date="2020-01-01",
-            end_date="2020-01-20",
-            api_key="TEST_KEY",
-            cache_dir=tmp_path,
-        )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            result = fetch_all_data(
+                start_date="2020-01-01",
+                end_date="2020-01-20",
+                api_key="TEST_KEY",
+                cache_dir=Path(tmp_dir),
+            )
 
         self.assertIsInstance(result, pd.DataFrame)
         self.assertIn("hy_spread", result.columns)
@@ -147,7 +148,7 @@ class TestFetchAllData(unittest.TestCase):
     @patch("src.data.fetcher.fetch_yahoo_data")
     @patch("src.data.fetcher.fetch_fred_data")
     def test_fetch_all_data_uses_cache_when_available(
-        self, mock_fred: MagicMock, mock_yahoo: MagicMock, tmp_path: Path
+        self, mock_fred: MagicMock, mock_yahoo: MagicMock
     ) -> None:
         """Second call should load from cache without hitting the APIs."""
         from src.data.fetcher import fetch_all_data
@@ -155,18 +156,21 @@ class TestFetchAllData(unittest.TestCase):
         mock_fred.return_value = self._make_fred_df()
         mock_yahoo.return_value = self._make_yahoo_df()
 
-        # First call: fetches from APIs and writes cache
-        fetch_all_data(
-            "2020-01-01", "2020-01-20", api_key="TEST_KEY", cache_dir=tmp_path
-        )
-        first_call_count = mock_fred.call_count
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
 
-        # Second call: should load from cache
-        fetch_all_data(
-            "2020-01-01", "2020-01-20", api_key="TEST_KEY", cache_dir=tmp_path
-        )
-        # fred should NOT have been called again
-        self.assertEqual(mock_fred.call_count, first_call_count)
+            # First call: fetches from APIs and writes cache
+            fetch_all_data(
+                "2020-01-01", "2020-01-20", api_key="TEST_KEY", cache_dir=tmp_path
+            )
+            first_call_count = mock_fred.call_count
+
+            # Second call: should load from cache
+            fetch_all_data(
+                "2020-01-01", "2020-01-20", api_key="TEST_KEY", cache_dir=tmp_path
+            )
+            # fred should NOT have been called again
+            self.assertEqual(mock_fred.call_count, first_call_count)
 
 
 # Allow running with unittest.main() directly
