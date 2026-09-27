@@ -8,10 +8,9 @@ models, and a unified training loop with early stopping.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
-import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +23,8 @@ class CreditSpreadDataset:
     """Sliding-window dataset for credit-spread time-series.
 
     Wraps ``torch.utils.data.Dataset`` to create (sequence, label) pairs using
-    a fixed look-back window.
+    a fixed look-back window.  Window ``i`` covers rows ``i … i+seq_len-1``
+    and is labelled with ``y[i+seq_len-1]``.
 
     Parameters
     ----------
@@ -48,11 +48,12 @@ class CreditSpreadDataset:
                     self_.seq_len = seq_len_
 
                 def __len__(self_) -> int:
-                    return len(self_.X) - self_.seq_len
+                    return max(len(self_.X) - self_.seq_len + 1, 0)
 
                 def __getitem__(self_, idx: int):  # type: ignore[override]
                     x_seq = self_.X[idx : idx + self_.seq_len]
-                    target = self_.y[idx + self_.seq_len]
+                    # The label belongs to the last observation in the window.
+                    target = self_.y[idx + self_.seq_len - 1]
                     return x_seq, target
 
             self._dataset = _Inner(X, y, seq_len)
@@ -257,25 +258,48 @@ class TransformerModel:
 # Training loop
 # ---------------------------------------------------------------------------
 
+def _build_dl_model(model_type: str, input_size: int, hidden_size: int, num_layers: int, dropout: float) -> Any:
+    if model_type == "lstm":
+        return LSTMModel(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers, dropout=dropout)
+    if model_type == "transformer":
+        nhead = min(4, hidden_size)
+        while hidden_size % nhead != 0:
+            nhead -= 1
+        return TransformerModel(
+            input_size=input_size, d_model=hidden_size, nhead=nhead, num_layers=num_layers, dropout=dropout
+        )
+    raise ValueError(f"Unknown model_type '{model_type}'. Choose 'lstm' or 'transformer'.")
+
+
 def train_dl_model(
     X: np.ndarray,
     y: np.ndarray,
     model_type: str = "lstm",
     seq_len: int = 20,
-    hidden_size: int = 64,
-    num_layers: int = 2,
+    hidden_size: int = 32,
+    num_layers: int = 1,
     epochs: int = 50,
     lr: float = 1e-3,
-    batch_size: int = 32,
-    patience: int = 10,
+    batch_size: int = 64,
+    patience: int = 8,
     val_fraction: float = 0.15,
+    gap: int = 0,
+    dropout: float = 0.2,
+    weight_decay: float = 1e-4,
+    seed: int = 42,
 ) -> dict[str, Any]:
     """Train an LSTM or Transformer model with early stopping.
+
+    Features are standardised and the target is divided by its standard
+    deviation using statistics from the training rows only.  The last
+    *val_fraction* of rows is the validation set; *gap* rows before it are
+    excluded from training so that no training label overlaps the validation
+    period (set it to the forecast horizon).
 
     Parameters
     ----------
     X:
-        Feature array of shape ``(n_samples, n_features)``.
+        Feature array of shape ``(n_samples, n_features)`` (unscaled).
     y:
         Target array of shape ``(n_samples,)``.
     model_type:
@@ -295,13 +319,22 @@ def train_dl_model(
     patience:
         Early-stopping patience (epochs without val-loss improvement).
     val_fraction:
-        Fraction of data held out for validation (taken from the end, no shuffling).
+        Fraction of rows held out for validation (taken from the end).
+    gap:
+        Rows purged between the training and validation sets.
+    dropout:
+        Dropout probability.
+    weight_decay:
+        L2 penalty passed to the Adam optimiser.
+    seed:
+        Random seed for reproducible weights and batch order.
 
     Returns
     -------
     dict
-        Keys: ``model``, ``train_losses``, ``val_losses``, ``predictions``,
-        ``metrics``.
+        Keys: ``model``, ``scaler``, ``y_scale``, ``train_losses``,
+        ``val_losses``, ``predictions`` (original units, one per validation
+        row), ``val_start`` (first validation row) and ``metrics``.
     """
     try:
         import torch
@@ -309,40 +342,37 @@ def train_dl_model(
         from torch.utils.data import DataLoader
     except ImportError as exc:
         raise ImportError("PyTorch is required: pip install torch") from exc
+    from sklearn.preprocessing import StandardScaler
+
+    torch.manual_seed(seed)
+    np.random.seed(seed)
 
     X_arr = np.asarray(X, dtype=np.float32)
     y_arr = np.asarray(y, dtype=np.float32)
     n = len(X_arr)
-    input_size = X_arr.shape[1]
 
-    # Train / val split (temporal – no shuffle)
     val_start = int(n * (1 - val_fraction))
-    X_train, X_val = X_arr[:val_start], X_arr[val_start:]
-    y_train, y_val = y_arr[:val_start], y_arr[val_start:]
+    train_end = val_start - gap
+    if train_end < seq_len or n - val_start < 1:
+        raise ValueError("Not enough rows for the requested seq_len / val_fraction / gap.")
 
-    # Build datasets
-    dataset_train = CreditSpreadDataset(X_train, y_train, seq_len).get_torch_dataset()
-    dataset_val = CreditSpreadDataset(X_val, y_val, seq_len).get_torch_dataset()
+    scaler = StandardScaler().fit(X_arr[:train_end])
+    X_scaled = scaler.transform(X_arr).astype(np.float32)
+    y_scale = float(np.std(y_arr[:train_end])) or 1.0
+    y_scaled = y_arr / y_scale
 
-    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=False)
-    val_loader = DataLoader(dataset_val, batch_size=batch_size, shuffle=False)
+    dataset_train = CreditSpreadDataset(X_scaled[:train_end], y_scaled[:train_end], seq_len).get_torch_dataset()
+    # Validation windows may look back into earlier rows: features are known then.
+    ctx = max(val_start - seq_len + 1, 0)
+    dataset_val = CreditSpreadDataset(X_scaled[ctx:], y_scaled[ctx:], seq_len).get_torch_dataset()
 
-    # Instantiate model
-    if model_type == "lstm":
-        wrapped = LSTMModel(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers)
-    elif model_type == "transformer":
-        d_model = hidden_size
-        nhead = min(4, d_model)
-        while d_model % nhead != 0:
-            nhead -= 1
-        wrapped = TransformerModel(
-            input_size=input_size, d_model=d_model, nhead=nhead, num_layers=num_layers
-        )
-    else:
-        raise ValueError(f"Unknown model_type '{model_type}'. Choose 'lstm' or 'transformer'.")
+    generator = torch.Generator().manual_seed(seed)
+    train_loader = DataLoader(dataset_train, batch_size=batch_size, shuffle=True, generator=generator)
+    val_loader = DataLoader(dataset_val, batch_size=256, shuffle=False)
 
+    wrapped = _build_dl_model(model_type, X_arr.shape[1], hidden_size, num_layers, dropout)
     model_nn = wrapped.model
-    optimizer = torch.optim.Adam(model_nn.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(model_nn.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.MSELoss()
 
     best_val_loss = float("inf")
@@ -352,27 +382,22 @@ def train_dl_model(
     no_improve = 0
 
     for epoch in range(1, epochs + 1):
-        # ---- Training ----
         model_nn.train()
         epoch_loss = 0.0
         for xb, yb in train_loader:
             optimizer.zero_grad()
-            pred = model_nn(xb)
-            loss = criterion(pred, yb)
+            loss = criterion(model_nn(xb), yb)
             loss.backward()
             nn.utils.clip_grad_norm_(model_nn.parameters(), max_norm=1.0)
             optimizer.step()
             epoch_loss += loss.item() * len(xb)
         train_losses.append(epoch_loss / max(len(dataset_train), 1))
 
-        # ---- Validation ----
         model_nn.eval()
         val_loss = 0.0
         with torch.no_grad():
             for xb, yb in val_loader:
-                pred = model_nn(xb)
-                loss = criterion(pred, yb)
-                val_loss += loss.item() * len(xb)
+                val_loss += criterion(model_nn(xb), yb).item() * len(xb)
         val_losses.append(val_loss / max(len(dataset_val), 1))
 
         if val_losses[-1] < best_val_loss:
@@ -384,58 +409,41 @@ def train_dl_model(
 
         if epoch % 10 == 0:
             logger.info(
-                "Epoch %d/%d  train_loss=%.6f  val_loss=%.6f",
-                epoch,
-                epochs,
-                train_losses[-1],
-                val_losses[-1],
+                "Epoch %d/%d  train_loss=%.4f  val_loss=%.4f", epoch, epochs, train_losses[-1], val_losses[-1]
             )
-
         if no_improve >= patience:
             logger.info("Early stopping at epoch %d.", epoch)
             break
 
-    # Restore best weights
     if best_state:
         model_nn.load_state_dict(best_state)
 
-    # Generate predictions on full validation set
-    predictions, metrics = evaluate_dl_model(wrapped, X_val, y_val, seq_len=seq_len)
+    # Early stopping picks the epoch on this validation set, so these metrics
+    # are optimistic; evaluate on a later, untouched period for a fair estimate.
+    predictions, metrics = evaluate_dl_model(
+        wrapped, X_arr[ctx:], y_arr[ctx:], seq_len=seq_len, scaler=scaler, y_scale=y_scale, horizon=max(gap, 1)
+    )
 
     return {
         "model": wrapped,
+        "scaler": scaler,
+        "y_scale": y_scale,
         "train_losses": train_losses,
         "val_losses": val_losses,
         "predictions": predictions,
+        "val_start": val_start,
         "metrics": metrics,
     }
 
 
-def evaluate_dl_model(
+def predict_dl_model(
     model: Any,
     X: np.ndarray,
-    y: np.ndarray,
     seq_len: int = 20,
-) -> tuple[np.ndarray, dict[str, float]]:
-    """Generate predictions and compute metrics for a trained DL model.
-
-    Parameters
-    ----------
-    model:
-        Trained ``LSTMModel`` or ``TransformerModel`` instance.
-    X:
-        Feature array of shape ``(n_samples, n_features)``.
-    y:
-        Target array of shape ``(n_samples,)``.
-    seq_len:
-        Sliding window length used during training.
-
-    Returns
-    -------
-    tuple[np.ndarray, dict[str, float]]
-        ``(predictions, metrics)`` where *predictions* is a 1-D array aligned
-        to observations from index *seq_len* onward.
-    """
+    scaler: Any = None,
+    y_scale: float = 1.0,
+) -> np.ndarray:
+    """Predict for rows ``seq_len-1 … n-1`` of *X* (unscaled input, original-unit output)."""
     try:
         import torch
         from torch.utils.data import DataLoader
@@ -443,28 +451,38 @@ def evaluate_dl_model(
         raise ImportError("PyTorch is required: pip install torch") from exc
 
     X_arr = np.asarray(X, dtype=np.float32)
-    y_arr = np.asarray(y, dtype=np.float32)
-
-    dataset = CreditSpreadDataset(X_arr, y_arr, seq_len).get_torch_dataset()
-    loader = DataLoader(dataset, batch_size=64, shuffle=False)
+    if scaler is not None:
+        X_arr = scaler.transform(X_arr).astype(np.float32)
+    dummy_y = np.zeros(len(X_arr), dtype=np.float32)
+    loader = DataLoader(CreditSpreadDataset(X_arr, dummy_y, seq_len).get_torch_dataset(), batch_size=256)
 
     model_nn = model.model
     model_nn.eval()
-    preds_list: list[np.ndarray] = []
-
     with torch.no_grad():
-        for xb, _ in loader:
-            out = model_nn(xb)
-            preds_list.append(out.cpu().numpy())
+        preds = [model_nn(xb).cpu().numpy() for xb, _ in loader]
+    return np.concatenate(preds) * y_scale if preds else np.array([], dtype=np.float32)
 
-    predictions = np.concatenate(preds_list)
-    y_aligned = y_arr[seq_len : seq_len + len(predictions)]
 
-    from sklearn.metrics import mean_absolute_error, mean_squared_error  # type: ignore
+def evaluate_dl_model(
+    model: Any,
+    X: np.ndarray,
+    y: np.ndarray,
+    seq_len: int = 20,
+    scaler: Any = None,
+    y_scale: float = 1.0,
+    horizon: int = 1,
+) -> tuple[np.ndarray, dict[str, float]]:
+    """Generate predictions and compute metrics for a trained DL model.
 
-    rmse = float(np.sqrt(mean_squared_error(y_aligned, predictions)))
-    mae = float(mean_absolute_error(y_aligned, predictions))
-    dir_acc = float(np.mean(np.sign(y_aligned) == np.sign(predictions)))
+    Returns
+    -------
+    tuple[np.ndarray, dict[str, float]]
+        ``(predictions, metrics)`` where *predictions* is aligned to rows
+        ``seq_len-1`` onward of *X* / *y*.
+    """
+    from src.models.ml_models import compute_metrics
 
-    metrics: dict[str, float] = {"rmse": rmse, "mae": mae, "directional_accuracy": dir_acc}
+    predictions = predict_dl_model(model, X, seq_len=seq_len, scaler=scaler, y_scale=y_scale)
+    y_aligned = np.asarray(y, dtype=np.float32)[seq_len - 1 : seq_len - 1 + len(predictions)]
+    metrics = compute_metrics(y_aligned, predictions, task="regression", horizon=horizon)
     return predictions, metrics
