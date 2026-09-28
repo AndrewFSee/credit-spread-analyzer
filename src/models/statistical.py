@@ -8,6 +8,7 @@ Johansen cointegration tests.
 
 from __future__ import annotations
 
+import inspect
 import logging
 import warnings
 from typing import Any
@@ -63,10 +64,14 @@ def run_granger_causality(
             f"Insufficient observations ({len(subset)}) for maxlag={maxlag}."
         )
 
+    kwargs = {}
+    if "verbose" in inspect.signature(grangercausalitytests).parameters:
+        # statsmodels < 0.15 prints results unless verbose=False (and warns that the flag
+        # is deprecated); 0.15 removed the argument and no longer prints.
+        kwargs["verbose"] = False
     with warnings.catch_warnings():
-        # verbose=False is deprecated in statsmodels but omitting it prints the results.
         warnings.simplefilter("ignore", FutureWarning)
-        results = grangercausalitytests(subset, maxlag=maxlag, verbose=False)
+        results = grangercausalitytests(subset, maxlag=maxlag, **kwargs)
     p_values: dict[int, float] = {}
     for lag, res in results.items():
         # Use F-test p-value (first test in the tuple)
