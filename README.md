@@ -196,8 +196,12 @@ bt["weight"].iloc[-1]                                   # equity weight currentl
 ```bash
 python scripts/run_dashboard.py
 # or directly:
-streamlit run src/dashboard/app.py
+python -m streamlit run src/dashboard/app.py
 ```
+
+Use `python -m streamlit` rather than a bare `streamlit`: with `pip install --user`, the `streamlit`
+executable goes into a Scripts folder that is often not on PATH (on Windows,
+`%APPDATA%\Python\Python3XX\Scripts`), so the bare command fails with "not recognized".
 
 ---
 

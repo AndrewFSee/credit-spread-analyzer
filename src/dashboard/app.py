@@ -1,8 +1,13 @@
 """
 Streamlit dashboard for the Credit Spread Analysis & Prediction Platform.
 
-Run with:
-    streamlit run src/dashboard/app.py
+Run from the project root with:
+    python scripts/run_dashboard.py
+or:
+    python -m streamlit run src/dashboard/app.py
+
+(``python -m`` works even when pip's Scripts folder, which holds the
+``streamlit`` executable, is not on PATH.)
 """
 
 from __future__ import annotations

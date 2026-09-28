@@ -6,7 +6,9 @@ Usage
     python scripts/run_dashboard.py [-- streamlit-args ...]
 
 This script is a thin wrapper around:
-    streamlit run src/dashboard/app.py
+    python -m streamlit run src/dashboard/app.py
+run with the current interpreter from the project root, so it works from any
+directory and does not need the ``streamlit`` executable on PATH.
 """
 
 from __future__ import annotations
