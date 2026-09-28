@@ -1,12 +1,18 @@
 """
 Streamlit dashboard for the Credit Spread Analysis & Prediction Platform.
 
-Run with:
-    streamlit run src/dashboard/app.py
+Run from the project root with:
+    python scripts/run_dashboard.py
+or:
+    python -m streamlit run src/dashboard/app.py
+
+(``python -m`` works even when pip's Scripts folder, which holds the
+``streamlit`` executable, is not on PATH.)
 """
 
 from __future__ import annotations
 
+import inspect
 import sys
 from pathlib import Path
 
@@ -55,6 +61,8 @@ EXPOSURE_CHOICES = {
     "widening": "Spread widening in/out",
 }
 REGIME_STATES_REALTIME = 3  # the exposure overlay was validated with three regimes
+# Comparison chips ("B&H -55%") are context, not a change: hide the arrow where supported.
+NO_ARROW = {"delta_arrow": "off"} if "delta_arrow" in inspect.signature(st.metric).parameters else {}
 
 # ---------------------------------------------------------------------------
 # Sidebar controls
@@ -304,7 +312,7 @@ with tab2:
 
     try:
         from src.models.regime import compute_regime_stats
-        from src.visualization.plots import plot_regime_overlay
+        from src.visualization.plots import plot_regime_overlay, plot_stress_probability
 
         hmm_frame = df[[primary]].dropna()
         regimes, probs, trans = fit_regimes(hmm_frame.values, n_regimes)
@@ -319,7 +327,7 @@ with tab2:
                 "Three-state HMM refitted every January on past data only and run forward day by day – "
                 "this is what the model would have shown at the time.  It drives the default exposure overlay."
             )
-            st.area_chart(rt.iloc[:, -1].rename("P(stress)"))
+            st.plotly_chart(plot_stress_probability(rt.iloc[:, -1], title=""), width="stretch")
             st.metric(f"P(stress) on {rt.index[-1].date()}", f"{rt.iloc[-1, -1]:.0%}")
 
         current = pd.Series(probs[-1], index=[f"Regime {i}" for i in range(n_regimes)])
@@ -420,11 +428,11 @@ with tab3:
                 m_cols[0].metric("Sharpe", f"{bt_metrics['sharpe']:.2f}",
                                  f"{bt_metrics['sharpe'] - bt_metrics['bh_sharpe']:+.2f} vs B&H")
                 m_cols[1].metric("Max DD", f"{bt_metrics['max_drawdown']*100:.1f}%",
-                                 f"B&H {bt_metrics['bh_max_drawdown']*100:.1f}%", delta_color="off")
+                                 f"B&H {bt_metrics['bh_max_drawdown']*100:.1f}%", delta_color="off", **NO_ARROW)
                 m_cols[2].metric("CAGR", f"{bt_metrics['annualised_return']*100:.1f}%",
-                                 f"B&H {bt_metrics['bh_annualised_return']*100:.1f}%", delta_color="off")
+                                 f"B&H {bt_metrics['bh_annualised_return']*100:.1f}%", delta_color="off", **NO_ARROW)
                 m_cols[3].metric("Avg equity weight", f"{bt_metrics['avg_equity_weight']*100:.0f}%",
-                                 f"{bt_metrics['turnover_per_year']:.1f} turnover/yr", delta_color="off")
+                                 f"{bt_metrics['turnover_per_year']:.1f} turnover/yr", delta_color="off", **NO_ARROW)
                 st.markdown(f"**Equity weight in force on {bt_df.index[-1].date()}: {bt_df['weight'].iloc[-1]:.0%}**")
                 st.caption(
                     "Weights use data published by each close and trade at the next close; fractional overlays "
@@ -458,7 +466,7 @@ with tab4:
 
     try:
         from src.models.ml_models import TREE_MODELS, compute_shap_values
-        from src.visualization.plots import plot_forecast_vs_actual, plot_shap_summary
+        from src.visualization.plots import plot_feature_importance, plot_forecast_vs_actual, plot_shap_summary
 
         if is_hyg and "hyg_xs_return" not in df.columns:
             raise ValueError("HYG / IEI data is not available in the loaded dataset.")
@@ -467,13 +475,14 @@ with tab4:
         latest_date = fc["live"].index[-1]
         latest = float(fc["live"].iloc[-1])
         if is_hyg:
-            direction = "HY outperforms Treasuries" if latest > 0 else "HY underperforms Treasuries"
+            direction = "HY outperforms" if latest > 0 else "HY underperforms"
         else:
-            direction = "widening" if latest > 0 else "tightening"
+            direction = "Widening" if latest > 0 else "Tightening"
+        # The signed number drives the arrow; spreads falling (tightening) shows green.
         st.metric(
-            f"Forecast from {latest_date.date()}",
-            f"{latest:+.1f} bps",
+            f"{horizon}-day forecast from {latest_date.date()}",
             direction,
+            f"{latest:+.1f} bps",
             delta_color="normal" if is_hyg else "inverse",
         )
 
@@ -497,6 +506,7 @@ with tab4:
                 fc["oos"][recent].values,
                 title="Out-of-sample forecast vs actual (last 2 years)",
                 index=fc["oos"].index[recent],
+                y_title="Excess return (bps)" if is_hyg else "Spread change (bps)",
             )
             st.plotly_chart(fig_pred, width="stretch")
 
@@ -510,8 +520,7 @@ with tab4:
                 except Exception as shap_exc:  # noqa: BLE001
                     st.info(f"SHAP computation unavailable: {shap_exc}")
             if not shown:
-                st.subheader("Feature importance")
-                st.bar_chart(fc["importance"].head(20))
+                st.plotly_chart(plot_feature_importance(fc["importance"]), width="stretch")
     except Exception as exc:  # noqa: BLE001
         st.warning(f"Forecasting failed: {exc}")
 
@@ -524,15 +533,20 @@ with tab5:
     window_size = st.slider("Window (most recent days)", min_value=20, max_value=252, value=60, step=10)
 
     try:
-        from src.visualization.plots import plot_correlation_heatmap
+        from src.visualization.plots import plot_correlation_heatmap, series_label
 
+        level_names = {"vix": "VIX", "dgs10": "10y Treasury", "t10y2y": "10y – 2y curve"}
+        return_names = {"spy_return": "S&P 500 return", "hyg_return": "HYG return",
+                        "ief_return": "IEF return", "gold_return": "Gold return"}
         change_view = pd.DataFrame(index=df.index)
         for col in [primary, "aaa_spread", "hy_spread", "vix", "dgs10", "t10y2y"]:
             if col in df.columns:
-                change_view[f"Δ {col}"] = df[col].diff()
-        for col in ["spy_return", "sp500_return", "hyg_return", "ief_return", "gold_return"]:
+                change_view[f"Δ {level_names.get(col) or series_label(col)}"] = df[col].diff()
+        if "spy_return" not in df.columns and "sp500_return" in df.columns:
+            return_names = {"sp500_return": "S&P 500 return", **return_names}
+        for col, name in return_names.items():
             if col in df.columns:
-                change_view[col] = df[col]
+                change_view[name] = df[col]
         options = list(change_view.columns)
         selected_cols = st.multiselect(
             "Select series (daily changes / returns)", options=options, default=options[:min(8, len(options))]
