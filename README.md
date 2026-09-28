@@ -1,41 +1,138 @@
-# Credit Spread Analysis & Prediction Platform
+<div align="center">
 
-![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+# Credit Spread Analyzer
 
-## Overview
+**Real-time credit-stress detection, spread forecasting and a drawdown-cutting equity overlay —<br>
+validated walk-forward, without look-ahead, on 36 years of market data.**
 
-A modular, end-to-end platform for analysing credit spreads as leading
-indicators of economic stress and equity-market regimes.  It combines
-macro-economic data from FRED, the Federal Reserve and Yahoo Finance, applies
-statistical and machine-learning models, and surfaces insights through an
-interactive Streamlit dashboard and five Jupyter notebooks.
+[![Tests](https://github.com/AndrewFSee/credit-spread-analyzer/actions/workflows/tests.yml/badge.svg)](https://github.com/AndrewFSee/credit-spread-analyzer/actions/workflows/tests.yml)
+[![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/dashboard-Streamlit-FF4B4B?logo=streamlit&logoColor=white)](#the-dashboard)
+[![scikit-learn](https://img.shields.io/badge/ML-scikit--learn%20%C2%B7%20LightGBM%20%C2%B7%20XGBoost-F7931E?logo=scikitlearn&logoColor=white)](#what-this-project-demonstrates)
+[![PyTorch](https://img.shields.io/badge/deep%20learning-PyTorch-EE4C2C?logo=pytorch&logoColor=white)](#what-this-project-demonstrates)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Every forecast and backtest is evaluated **out of sample** with walk-forward
-refits, and the data pipeline only lets a model see what was published at
-the time.  See [Signal validation](#signal-validation) for results.
+Built by **Andrew See** · [GitHub](https://github.com/AndrewFSee) · [LinkedIn](https://www.linkedin.com/in/andrewfsee/)
 
-> **Data note.** FRED now serves only about the last three years of the ICE BofA
-> OAS series (high yield, investment grade, BBB).  The platform therefore uses:
+</div>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/dashboard-leading-indicator-dark.png">
+  <img alt="Streamlit dashboard showing the credit-aware equity overlay backtest against buy and hold" src="docs/images/dashboard-leading-indicator-light.png">
+</picture>
+
+## At a glance
+
+- **Cut the worst drawdown from −55% to −18%.** A credit-aware equity overlay turned $1 into $7.90 from 2000 to 2026, against $8.30 for the S&P 500, with a Sharpe ratio of 0.61 versus 0.40.
+- **Forecast skill that survives a holdout.** The 5-day credit-spread forecast ranked outcomes correctly in 24 of 27 years, including all 8 holdout years (2019–2026) that were never used to choose models.
+- **Bias caught, not hidden.** Validation showed that part of the apparent edge came from stale index prices, so tradable claims are tested on an exchange-traded fund instead.
+- **Built like production code.** The pipeline is point-in-time, with 91 automated tests (including look-ahead regression tests), command-line tools, a reproducible evaluation report and an interactive dashboard.
+
+## What this project demonstrates
+
+| Area | In this project |
+|---|---|
+| **Quantitative research** | Walk-forward validation with yearly refits, purged labels and an untouched holdout; lead–lag and stationarity analysis; negative results reported rather than dropped |
+| **Machine learning** | Ridge, XGBoost, LightGBM, random forests, a sign-constrained factor model and ensembles; LSTM and Transformer benchmarks; SHAP explanations |
+| **Time series and regimes** | Hidden Markov models refitted yearly and filtered causally; VAR, impulse responses, Granger causality and cointegration |
+| **Data engineering** | One point-in-time pipeline across FRED, the Federal Reserve and Yahoo Finance: publication-date alignment, a versioned cache and optional licensed-data splicing |
+| **Software engineering** | Modular Python package, 91 tests, CLI tools, and scripts that regenerate every figure and table |
+| **Communication** | A five-tab Streamlit dashboard, figures that render in light and dark mode, and written limits and caveats |
+
+## Results
+
+### 1 · Stress detection
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/stress-monitor-dark.png">
+  <img alt="Moody's Baa spread since 1994 with the real-time probability of a credit-stress regime" src="docs/images/stress-monitor-light.png">
+</picture>
+
+A hidden Markov model, refitted each January on past data only, estimates the probability that credit markets are in a stress regime. It switched on in August 1998, early 2000 and December 2007, the month the Great Recession began. It was late for COVID: it only switched on 23 March 2020, the day the sell-off bottomed. Sudden shocks are therefore handled mainly by the volatility part of the overlay below.
+
+### 2 · Risk overlay
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/exposure-overlay-dark.png">
+  <img alt="Growth of one dollar and drawdowns for the credit-aware overlay and buy and hold since 2000" src="docs/images/exposure-overlay-light.png">
+</picture>
+
+The overlay holds `min(1, 15% ÷ recent volatility) × (1 − P(credit stress))` in the S&P 500 and the rest in T-bills. It trades the day after each signal and pays transaction costs. **The benefit is risk, not return.** Since 2000 it nearly matched the index with a third of the drawdown. Measured from 1993 instead, it finishes well behind ($18.60 vs $30.90; CAGR 9.1% vs 10.8%), because it holds back in long bull markets. The maximum drawdown is still −18% versus −55%, and the Sharpe ratio 0.65 versus 0.51.
+
+### 3 · Forecast skill
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/forecast-skill-dark.png">
+  <img alt="Yearly rank correlation between the 5-day spread forecast and outcomes, 2000 to 2026" src="docs/images/forecast-skill-light.png">
+</picture>
+
+A ridge + LightGBM ensemble forecasts the change in the Moody's Baa spread over the next five trading days. Every point is out of sample. The forecast gets the *direction and ranking* right far more often than chance. The *size* of moves is only modestly predictable (out-of-sample R² of 4–11%).
+
+### 4 · Research integrity
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/stale-pricing-dark.png">
+  <img alt="Correlation of credit series with the S&P 500 on the same day and the following days" src="docs/images/stale-pricing-light.png">
+</picture>
+
+Moody's index yields and mutual-fund prices keep catching up to stock-market moves for days. That makes them look predictable, but nobody can trade on it. HYG, an exchange-traded high-yield fund, absorbs the news the same day. A model trained directly on HYG still ranks the next week's high-yield excess return correctly in every year since 2011 (rank IC 0.13–0.16). That edge is smaller, but it's real.
+
+## The dashboard
+
+<table>
+  <tr>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/images/dashboard-regime-analysis-dark.png">
+        <img alt="Regime analysis tab" src="docs/images/dashboard-regime-analysis-light.png">
+      </picture>
+      <p align="center"><b>Regime analysis:</b> historical regimes and the real-time stress probability</p>
+    </td>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/images/dashboard-forecasting-dark.png">
+        <img alt="Forecasting tab" src="docs/images/dashboard-forecasting-light.png">
+      </picture>
+      <p align="center"><b>Forecasting:</b> live forecast, out-of-sample record and what drives it</p>
+    </td>
+  </tr>
+</table>
+
+Five tabs: market overview, regime analysis, leading indicator and overlay backtest, forecasting (credit spread or tradable HYG), and a correlation monitor.
+
+## Quick start
+
+```bash
+git clone https://github.com/AndrewFSee/credit-spread-analyzer.git
+cd credit-spread-analyzer
+pip install -r requirements.txt
+
+python scripts/run_dashboard.py   # downloads public data on first run; no API key needed
+python -m pytest                  # 91 tests on synthetic data, no network needed
+```
+
+---
+
+## Technical documentation
+
+### Data
+
+> FRED now serves only about the last three years of the ICE BofA OAS series (high yield, investment grade, BBB). The platform therefore uses:
 >
 > - **Moody's Baa – 10-year Treasury spread** (`BAA10Y`, daily since 1986) as the primary credit spread.
 > - **Public high-yield proxies:**
 >   - HYG vs IEI excess returns (2007+, exchange-traded).
 >   - A Vanguard high-yield fund vs a Vanguard Treasury fund (1991+).
 >   - The Fed's Gilchrist–Zakrajšek spread (monthly).
-> - **Your own licensed history, if you have one.** Save an ICE or Bloomberg series as
->   `data/external/hy_spread.csv` (columns: date, value, in percent or bps), then re-download with `--force`.
->   It is spliced behind the FRED data, which wins on the overlap; the splice logs the median difference so a
->   mismatched source is obvious. `data/external/` is git-ignored — FRED distributes ICE BofA data under terms
->   that do not allow redistribution, so check your own licence before using a third-party copy.
->   Once a spread has at least `MIN_SPREAD_HISTORY` observations it becomes selectable everywhere
->   (`--spread-col`, dashboard sidebar) and the tradable HY model picks it up automatically.
+> - **Your own licensed history, if you have one.** Save an ICE or Bloomberg series as `data/external/hy_spread.csv` (columns: date, value, in percent or bps), then re-download with `--force`.
+>   - It is spliced behind the FRED data, and FRED wins where both exist. The splice logs the median difference, so a mismatched source is obvious.
+>   - `data/external/` is git-ignored. FRED distributes ICE BofA data under terms that don't allow redistribution, so check your licence before using a third-party copy.
+>   - Once a spread has at least `MIN_SPREAD_HISTORY` observations, it becomes selectable everywhere (`--spread-col`, the dashboard sidebar), and the tradable HY model uses it automatically.
 >
 > All spreads are stored in **basis points**.
 
----
-
-## Architecture
+<details>
+<summary><b>Architecture</b></summary>
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -83,9 +180,10 @@ the time.  See [Signal validation](#signal-validation) for results.
 └─────────────────────────────────────────────────────────┘
 ```
 
----
+</details>
 
-## Features
+<details>
+<summary><b>Features</b></summary>
 
 - **Data ingestion:**
   - FRED (API key optional; falls back to the public CSV endpoint).
@@ -118,15 +216,15 @@ the time.  See [Signal validation](#signal-validation) for results.
   - Trades execute on the next day and are only made when the target weight moves more than 10 points.
   - Costs are charged; cash earns the T-bill rate.
 - **Interactive dashboard:** a 5-tab Streamlit app (Overview, Regimes, Leading Indicator, Forecasting, Correlations).
-- **CLI scripts:** `download_data.py`, `train_models.py`, `evaluate_signals.py` and `run_dashboard.py`.
+- **CLI scripts:** `download_data.py`, `train_models.py`, `evaluate_signals.py`, `make_readme_figures.py` and `run_dashboard.py`.
 
----
+</details>
 
-## Setup
+### Setup
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-org/credit-spread-analyzer.git
+git clone https://github.com/AndrewFSee/credit-spread-analyzer.git
 cd credit-spread-analyzer
 
 # 2. Create and activate a virtual environment
@@ -145,18 +243,16 @@ export FRED_API_KEY="your_api_key_here"
 # 6. (Optional) add licensed spread histories, e.g. data/external/hy_spread.csv
 ```
 
----
+### Usage
 
-## Usage
-
-### Download data
+#### Download data
 
 ```bash
 python scripts/download_data.py --start-date 1990-01-01 --output-dir data/
 # add --force to rebuild the cache (e.g. after adding files to data/external/)
 ```
 
-### Evaluate all models and signals (walk-forward + holdout)
+#### Evaluate all models and signals (walk-forward + holdout)
 
 ```bash
 python scripts/evaluate_signals.py \
@@ -165,7 +261,7 @@ python scripts/evaluate_signals.py \
 # → reports/signal_evaluation.md
 ```
 
-### Train a model and get the latest forecast
+#### Train a model and get the latest forecast
 
 ```bash
 # Baa spread change, 5 days (recommended model: ensemble)
@@ -181,7 +277,7 @@ python scripts/train_models.py --data-path data/market_data_1990-01-01_<end-date
 #          --target-horizon N  --task {regression,classification}  --output-dir models/saved/
 ```
 
-### Exposure overlay in code
+#### Exposure overlay in code
 
 ```python
 from src.analysis.leading_indicator import run_full_backtest
@@ -191,7 +287,7 @@ bt, metrics = run_full_backtest(df, method="zscore")   # all-or-nothing alternat
 bt["weight"].iloc[-1]                                   # equity weight currently in force
 ```
 
-### Launch the Streamlit dashboard
+#### Launch the Streamlit dashboard
 
 ```bash
 python scripts/run_dashboard.py
@@ -199,13 +295,16 @@ python scripts/run_dashboard.py
 python -m streamlit run src/dashboard/app.py
 ```
 
-Use `python -m streamlit` rather than a bare `streamlit`: with `pip install --user`, the `streamlit`
-executable goes into a Scripts folder that is often not on PATH (on Windows,
-`%APPDATA%\Python\Python3XX\Scripts`), so the bare command fails with "not recognized".
+Use `python -m streamlit` rather than a bare `streamlit`. With `pip install --user`, the `streamlit` executable goes into a Scripts folder that is often not on PATH (on Windows, `%APPDATA%\Python\Python3XX\Scripts`), so the bare command fails with "not recognized".
 
----
+#### Regenerate the README figures
 
-## Signal validation
+```bash
+python scripts/make_readme_figures.py --data-path data/market_data_1990-01-01_<end-date>.parquet
+# → docs/images/*-light.png and *-dark.png (public data only)
+```
+
+### Signal validation
 
 Full tables are in [`reports/signal_evaluation.md`](reports/signal_evaluation.md), generated by `scripts/evaluate_signals.py`.
 
@@ -215,7 +314,7 @@ Full tables are in [`reports/signal_evaluation.md`](reports/signal_evaluation.md
 - **Development period:** 2000–2018 (2011–2018 for HYG), used for choices.
 - **Holdout:** 2019-01 to 2026-09.
 
-### 1. Baa spread forecasts
+#### 1. Baa spread forecasts
 
 | Horizon | Model | Period | OOS R² | Rank IC | Hit rate | Years with IC > 0 |
 |---|---|---|---|---|---|---|
@@ -227,12 +326,15 @@ Full tables are in [`reports/signal_evaluation.md`](reports/signal_evaluation.md
 
 - **5 days:** every model beat a no-change forecast in both periods.
 - **20 days:** forecasts get the direction right more often than not, but the size of the move has no skill (ridge, trees and ensemble all had negative holdout R²).
-- **Is the Baa proxy a good stand-in for high yield?** Partly. Correlation of Baa changes with ICE HY changes is 0.61 daily, 0.74 at 20 days and 0.86 at 60 days (0.86–0.87 against the long proxies back to 1991), so it tracks the *direction* of high-yield stress well. But high yield moves about 2.2 bps per 1 bp of Baa, Baa explains only about half the variance of HY moves at 5–20 days, and the levels are not comparable (164 vs 312 bps on average over 2023–2026). Use it for regimes and stress detection, not for HY levels or position sizing.
+- **Is the Baa proxy a good stand-in for high yield?** Partly:
+  - **It tracks the direction of high-yield stress well.** Baa changes correlate with ICE HY changes at 0.61 daily, 0.74 over 20 days and 0.86 over 60 days (0.86–0.87 against the long proxies back to 1991).
+  - **It does not capture magnitudes or levels.** High yield moves about 2.2 bps per 1 bp of Baa, Baa explains only about half the variance of HY moves at 5–20 days, and average levels differ (164 vs 312 bps over 2023–2026).
+  - **So:** use it for regimes and stress detection, not for HY levels or position sizing.
 - **Deep learning:**
   - The LSTM is comparable to the ensemble at 5 days (holdout R² 0.04–0.10 across seeds) but less stable.
   - The Transformer is unreliable: holdout R² ranged from −0.38 to +0.10 across seeds.
 
-### 2. How much of that is tradable?
+#### 2. How much of that is tradable?
 
 **Moody's Baa yields and bond-fund NAVs react to equity moves with a delay.** The table shows the correlation of each series' move on day *t+k* with the SPY return on day *t*.
 
@@ -248,7 +350,7 @@ Full tables are in [`reports/signal_evaluation.md`](reports/signal_evaluation.md
   - It barely carries over to HYG (IC 0.04–0.07).
 - **Use it as a forecast of reported spreads, not as a trading signal.**
 
-### 3. Tradable high yield (HYG − 0.85 × IEI, 5 days, next-day entry)
+#### 3. Tradable high yield (HYG − 0.85 × IEI, 5 days, next-day entry)
 
 | Model | Period | OOS R² | Rank IC | Hit rate | Years with IC > 0 |
 |---|---|---|---|---|---|
@@ -260,7 +362,7 @@ Full tables are in [`reports/signal_evaluation.md`](reports/signal_evaluation.md
 - **The Baa-style priors fail here.** For HYG, an equity sell-off is followed by a small rebound, not further losses.
 - **Proxy caveat.** Models trained on the long Vanguard fund history look better when tested on the fund itself, because of stale pricing. They transfer poorly to HYG, so HYG is the evaluation target.
 
-### 4. Regime-conditional forecasts: no improvement
+#### 4. Regime-conditional forecasts: no improvement
 
 Adding real-time HMM regime probabilities as features left the recommended models essentially unchanged:
 
@@ -270,7 +372,7 @@ Adding real-time HMM regime probabilities as features left the recommended model
 
 The option remains (`build_feature_matrix(..., regime_probs=...)`), but it is off by default.
 
-### 5. Equity exposure overlays
+#### 5. Equity exposure overlays
 
 **Default overlay.** Equity weight = `min(1, 15% / recent SPY vol) × (1 − real-time P(credit stress))`, with the rest in T-bills.
 
@@ -292,7 +394,7 @@ The option remains (`build_feature_matrix(..., regime_probs=...)`), but it is of
 - **It still trails buy & hold in calm bull markets:** 2010–2014 (Sharpe 0.71 vs 0.98) and 2023–2026 (0.97 vs 1.09). It also gives up return (CAGR) for lower risk.
 - **Selection caveat:** the overlays were compared on both periods at the same time. The holdout is therefore not untouched for this particular choice.
 
-### 6. With a long ICE high-yield history (optional data)
+#### 6. With a long ICE high-yield history (optional data)
 
 Section 6 of the report re-runs the comparison whenever `hy_spread` has enough history.  With a spliced 1997+ history:
 
@@ -305,9 +407,7 @@ Section 6 of the report re-runs the comparison whenever `hy_spread` has enough h
 
 The Baa spread remains `PRIMARY_SPREAD`, so the project behaves identically for anyone without licensed data.
 
----
-
-## Methodology: avoiding look-ahead bias
+### Methodology: avoiding look-ahead bias
 
 | Issue | Handling |
 |---|---|
@@ -320,9 +420,8 @@ The Baa spread remains `PRIMARY_SPREAD`, so the project behaves identically for 
 | Regimes | Signals and features use `real_time_regime_probabilities` (yearly refits, forward filter). `label_regimes` is descriptive only. |
 | Model selection | Choices were made on the development period. The exposure overlay is the exception noted above. |
 
----
-
-## Module Descriptions
+<details>
+<summary><b>Module descriptions</b></summary>
 
 | Module | Description |
 |--------|-------------|
@@ -334,16 +433,18 @@ The Baa spread remains `PRIMARY_SPREAD`, so the project behaves identically for 
 | `src/models/ml_models.py` | Composite / ridge / tree / ensemble models, purged CV, walk-forward, metrics, SHAP |
 | `src/models/dl_models.py` | LSTM and Transformer with leak-free scaling and early stopping |
 | `src/analysis/leading_indicator.py` | Exposure weights (vol × regime, z-score, widening) and allocation backtests |
-| `src/visualization/plots.py` | Plotly / Matplotlib charting functions |
+| `src/visualization/plots.py` | Plotly / Matplotlib charts with a colour-vision-safe palette and readable labels |
 | `src/dashboard/app.py` | 5-tab Streamlit dashboard |
 | `scripts/download_data.py` | CLI: fetch and cache market data |
 | `scripts/train_models.py` | CLI: train a Baa or HYG model, report CV + holdout metrics, latest forecast |
 | `scripts/evaluate_signals.py` | CLI: full walk-forward evaluation → `reports/signal_evaluation.md` |
+| `scripts/make_readme_figures.py` | CLI: render the README figures (light and dark) from the project's own models |
 | `scripts/run_dashboard.py` | CLI: launch Streamlit dashboard |
 
----
+</details>
 
-## Data Sources
+<details>
+<summary><b>Data sources</b></summary>
 
 | Source | Series / Ticker | Description |
 |--------|----------------|-------------|
@@ -359,9 +460,10 @@ The Baa spread remains `PRIMARY_SPREAD`, so the project behaves identically for 
 | Yahoo Finance | `VWEHX`, `VFITX` | Vanguard High-Yield Corporate and Intermediate-Term Treasury funds |
 | Yahoo Finance | `CL=F`, `GC=F` | Crude oil and gold futures |
 
----
+</details>
 
-## Configuration
+<details>
+<summary><b>Configuration</b></summary>
 
 All parameters are in `config/settings.py`:
 
@@ -388,14 +490,14 @@ HMM_N_STATES               # 3
 DATA_DIR / MODELS_DIR
 ```
 
----
+</details>
 
-## Testing
+### Testing
 
 ```bash
-pytest                      # all tests (synthetic data, no network)
-pytest tests/test_features.py -v
-pytest --cov=src --cov-report=term-missing
+python -m pytest                      # all tests (synthetic data, no network) – also run by GitHub Actions on every push
+python -m pytest tests/test_features.py -v
+python -m pytest --cov=src --cov-report=term-missing
 ```
 
 The tests include regression checks for:
@@ -409,9 +511,7 @@ The tests include regression checks for:
 - Regime ordering.
 - Deep-learning label alignment and scaling.
 
----
-
-## Notebooks
+### Notebooks
 
 | Notebook | Topic |
 |----------|-------|
@@ -421,9 +521,7 @@ The tests include regression checks for:
 | `04_ml_forecasting.ipynb` | Walk-forward comparison of all models, SHAP, tradable HYG model |
 | `05_deep_learning.ipynb` | LSTM and Transformer trained before, evaluated on, the holdout |
 
----
-
-## Future Improvements
+### Future improvements
 
 - **Licensed high-yield history:** drop a full ICE HY OAS history into `data/external/` and compare it with the public proxies.
 - **Intraday or ETF-based spread nowcasts:** reduce the stale-pricing gap in daily index data.
@@ -431,8 +529,6 @@ The tests include regression checks for:
 - **Multi-asset overlay:** extend exposure management to a stock / bond / cash mix.
 - **Experiment tracking:** add MLflow or W&B.
 - **Alerting:** send email or Slack notifications on regime shifts.
-
----
 
 ## License
 
