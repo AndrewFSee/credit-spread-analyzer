@@ -9,9 +9,9 @@ Johansen cointegration tests.
 from __future__ import annotations
 
 import logging
+import warnings
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -22,8 +22,14 @@ def run_granger_causality(
     caused: str,
     causing: str,
     maxlag: int = 10,
+    transform: str = "diff",
 ) -> dict[int, float]:
     """Run Granger causality test: does *causing* Granger-cause *caused*?
+
+    The test assumes stationary inputs.  Spread, rate and volatility levels
+    are close to unit-root processes, so by default both series are
+    first-differenced; running the test on levels produces spurious
+    "significant" results.
 
     Parameters
     ----------
@@ -35,6 +41,9 @@ def run_granger_causality(
         Name of the predictor (causing) variable column.
     maxlag:
         Maximum number of lags to test.
+    transform:
+        ``"diff"`` (default) to first-difference both series, ``"none"`` to
+        use them as given (e.g. when passing returns).
 
     Returns
     -------
@@ -43,13 +52,21 @@ def run_granger_causality(
     """
     from statsmodels.tsa.stattools import grangercausalitytests  # type: ignore
 
-    subset = df[[caused, causing]].dropna()
+    subset = df[[caused, causing]]
+    if transform == "diff":
+        subset = subset.diff()
+    elif transform != "none":
+        raise ValueError(f"Unknown transform '{transform}'. Choose 'diff' or 'none'.")
+    subset = subset.dropna()
     if len(subset) < maxlag * 3:
         raise ValueError(
             f"Insufficient observations ({len(subset)}) for maxlag={maxlag}."
         )
 
-    results = grangercausalitytests(subset, maxlag=maxlag, verbose=False)
+    with warnings.catch_warnings():
+        # verbose=False is deprecated in statsmodels but omitting it prints the results.
+        warnings.simplefilter("ignore", FutureWarning)
+        results = grangercausalitytests(subset, maxlag=maxlag, verbose=False)
     p_values: dict[int, float] = {}
     for lag, res in results.items():
         # Use F-test p-value (first test in the tuple)
@@ -58,12 +75,24 @@ def run_granger_causality(
     return p_values
 
 
+def adf_test(series: pd.Series) -> dict[str, float]:
+    """Augmented Dickey-Fuller unit-root test (small p-value ⇒ stationary)."""
+    from statsmodels.tsa.stattools import adfuller  # type: ignore
+
+    stat, p_value, *_ = adfuller(series.dropna(), autolag="AIC")
+    return {"adf_stat": float(stat), "p_value": float(p_value)}
+
+
 def fit_var_model(
     df: pd.DataFrame,
     columns: list[str],
     maxlags: int = 10,
+    transform: str = "diff",
 ) -> Any:
     """Fit a Vector Autoregression model and select lag order by AIC.
+
+    Like :func:`run_granger_causality`, the series are first-differenced by
+    default so the VAR is estimated on stationary data.
 
     Parameters
     ----------
@@ -73,6 +102,8 @@ def fit_var_model(
         Columns to include in the VAR.
     maxlags:
         Maximum lag order to consider.
+    transform:
+        ``"diff"`` (default) or ``"none"``.
 
     Returns
     -------
@@ -81,8 +112,12 @@ def fit_var_model(
     """
     from statsmodels.tsa.vector_ar.var_model import VAR  # type: ignore
 
-    subset = df[columns].dropna()
-    model = VAR(subset)
+    subset = df[columns]
+    if transform == "diff":
+        subset = subset.diff()
+    elif transform != "none":
+        raise ValueError(f"Unknown transform '{transform}'. Choose 'diff' or 'none'.")
+    model = VAR(subset.dropna())
     result = model.fit(maxlags=maxlags, ic="aic", verbose=False)
     logger.info("VAR fitted: selected %d lags (AIC=%.4f)", result.k_ar, result.aic)
     return result
@@ -106,8 +141,10 @@ def compute_irf(
     statsmodels IRAnalysis
         IRF object with ``.irfs`` attribute (shape: periods × k × k).
     """
+    if var_result.k_ar == 0:
+        raise ValueError("The VAR has zero lags (selected by AIC), so there are no dynamics to trace.")
     irf = var_result.irf(periods=periods)
-    logger.info("IRF computed for %d periods, %d variables.", periods, len(var_result.model.names))
+    logger.info("IRF computed for %d periods, %d variables.", periods, len(var_result.names))
     return irf
 
 
@@ -200,7 +237,7 @@ def summarize_granger(
         sig = "✓" if p < significance else "✗"
         lines.append(f"{lag:>5}  {p:>10.4f}  {sig:>12}")
 
-    sig_lags = [lag for lag, p in granger_results.items() if p < significance]
+    sig_lags = [int(lag) for lag, p in granger_results.items() if p < significance]
     if sig_lags:
         lines.append(f"\nSignificant at lags: {sig_lags}")
     else:

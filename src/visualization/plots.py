@@ -23,9 +23,8 @@ logger = logging.getLogger(__name__)
 
 def _recession_bands(fig: Any) -> Any:
     """Add approximate US recession shading to a Plotly figure."""
-    import plotly.graph_objects as go  # type: ignore
-
     recessions = [
+        ("1990-07-01", "1991-03-01"),
         ("2001-03-01", "2001-11-01"),
         ("2007-12-01", "2009-06-01"),
         ("2020-02-01", "2020-04-01"),
@@ -67,7 +66,9 @@ def plot_spread_history(
     Figure object.
     """
     if spread_cols is None:
-        spread_cols = [c for c in ["hy_spread", "ig_spread", "bbb_spread"] if c in df.columns]
+        spread_cols = [
+            c for c in ["baa_spread", "aaa_spread", "hy_spread", "ig_spread", "bbb_spread"] if c in df.columns
+        ]
     if not spread_cols:
         raise ValueError("No spread columns found in DataFrame.")
 
@@ -76,7 +77,8 @@ def plot_spread_history(
 
         fig = go.Figure()
         for col in spread_cols:
-            fig.add_trace(go.Scatter(x=df.index, y=df[col], mode="lines", name=col))
+            s = df[col].dropna()
+            fig.add_trace(go.Scatter(x=s.index, y=s, mode="lines", name=col))
         fig = _recession_bands(fig)
         fig.update_layout(
             title="Credit Spread History",
@@ -103,7 +105,7 @@ def plot_spread_history(
 def plot_regime_overlay(
     df: pd.DataFrame,
     regimes: np.ndarray,
-    spread_col: str = "hy_spread",
+    spread_col: str = "baa_spread",
     use_plotly: bool = True,
 ) -> Any:
     """Plot spread time-series coloured by regime.
@@ -132,6 +134,7 @@ def plot_regime_overlay(
     if use_plotly:
         import plotly.graph_objects as go  # type: ignore
 
+        suffix = {unique_regimes[0]: " (calmest)", unique_regimes[-1]: " (most stressed)"}
         fig = go.Figure()
         for i, r in enumerate(unique_regimes):
             mask = regimes == r
@@ -143,7 +146,7 @@ def plot_regime_overlay(
                     y=vals,
                     mode="markers",
                     marker=dict(color=colours[i % len(colours)], size=4),
-                    name=f"Regime {r}",
+                    name=f"Regime {r}{suffix.get(r, '') if len(unique_regimes) > 1 else ''}",
                 )
             )
         fig.update_layout(
@@ -171,14 +174,14 @@ def plot_correlation_heatmap(
     window: int = 60,
     use_plotly: bool = True,
 ) -> Any:
-    """Plot a rolling correlation heatmap.
+    """Plot the correlation matrix over the most recent *window* rows.
 
     Parameters
     ----------
     df:
         DataFrame with numeric columns.
     window:
-        Rolling window for correlation computation.
+        Number of most recent observations used.
     use_plotly:
         Return Plotly figure if ``True``.
 
@@ -187,7 +190,7 @@ def plot_correlation_heatmap(
     Figure object.
     """
     numeric_df = df.select_dtypes(include=[np.number])
-    corr = numeric_df.rolling(window).corr().iloc[-len(numeric_df.columns) :]
+    corr = numeric_df.tail(window).corr()
 
     if use_plotly:
         import plotly.graph_objects as go  # type: ignore
@@ -205,16 +208,15 @@ def plot_correlation_heatmap(
                 texttemplate="%{text}",
             )
         )
-        fig.update_layout(title=f"Correlation Heatmap (rolling {window}d)", template="plotly_white")
+        fig.update_layout(title=f"Correlation Heatmap (last {window} days)", template="plotly_white")
         return fig
     else:
         import matplotlib.pyplot as plt  # type: ignore
         import seaborn as sns  # type: ignore
 
-        full_corr = numeric_df.corr()
         fig, ax = plt.subplots(figsize=(10, 8))
-        sns.heatmap(full_corr, annot=True, fmt=".2f", cmap="RdBu_r", center=0, ax=ax)
-        ax.set_title(f"Correlation Heatmap (rolling {window}d)")
+        sns.heatmap(corr, annot=True, fmt=".2f", cmap="RdBu_r", center=0, ax=ax)
+        ax.set_title(f"Correlation Heatmap (last {window} days)")
         fig.tight_layout()
         return fig
 
@@ -331,6 +333,7 @@ def plot_forecast_vs_actual(
     y_pred: np.ndarray,
     use_plotly: bool = True,
     title: str = "Forecast vs Actual",
+    index: Optional[Any] = None,
 ) -> Any:
     """Scatter and line plot comparing predictions to actual values.
 
@@ -344,12 +347,14 @@ def plot_forecast_vs_actual(
         Return Plotly figure if ``True``.
     title:
         Chart title.
+    index:
+        Optional x-axis values (e.g. dates); defaults to the sample number.
 
     Returns
     -------
     Figure object.
     """
-    idx = np.arange(len(y_true))
+    idx = np.arange(len(y_true)) if index is None else index
 
     if use_plotly:
         import plotly.graph_objects as go  # type: ignore
@@ -357,7 +362,12 @@ def plot_forecast_vs_actual(
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=idx, y=y_true, mode="lines", name="Actual"))
         fig.add_trace(go.Scatter(x=idx, y=y_pred, mode="lines", name="Predicted", line=dict(dash="dash")))
-        fig.update_layout(title=title, xaxis_title="Sample", yaxis_title="Value", template="plotly_white")
+        fig.update_layout(
+            title=title,
+            xaxis_title="Sample" if index is None else "Date",
+            yaxis_title="Value",
+            template="plotly_white",
+        )
         return fig
     else:
         import matplotlib.pyplot as plt  # type: ignore
@@ -414,14 +424,18 @@ def plot_backtest_results(
             row=1, col=1,
         )
         fig.add_trace(
-            go.Bar(
+            go.Scatter(
                 x=backtest_df.index,
                 y=backtest_df["signal"],
-                name="Signal (1=Defensive)",
-                marker_color="rgba(128,128,128,0.4)",
+                name="Defensive share (1 − equity weight)",
+                mode="lines",
+                line=dict(shape="hv", width=0),
+                fill="tozeroy",
+                fillcolor="rgba(128,128,128,0.4)",
             ),
             row=2, col=1,
         )
+        fig.update_yaxes(type="log", title_text="Growth of $1", row=1, col=1)
         fig.update_layout(
             title="Backtest: Strategy vs Buy & Hold",
             template="plotly_white",
@@ -436,8 +450,8 @@ def plot_backtest_results(
         ax1.plot(backtest_df.index, backtest_df["bh_cumulative"], label="Buy & Hold", linestyle="--")
         ax1.set_title("Backtest: Strategy vs Buy & Hold")
         ax1.legend()
-        ax2.bar(backtest_df.index, backtest_df["signal"], color="grey", alpha=0.5, label="Signal")
-        ax2.set_ylabel("Signal")
+        ax2.fill_between(backtest_df.index, backtest_df["signal"], step="post", color="grey", alpha=0.5, label="Signal")
+        ax2.set_ylabel("Defensive share")
         ax2.legend()
         fig.tight_layout()
         return fig

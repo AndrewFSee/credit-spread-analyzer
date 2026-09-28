@@ -3,13 +3,14 @@ CLI script to download and cache market data.
 
 Usage
 -----
-    python scripts/download_data.py --api-key $FRED_API_KEY
+    python scripts/download_data.py
 
 Options
 -------
-    --start-date    Start date in YYYY-MM-DD format (default: 2000-01-01)
+    --start-date    Start date in YYYY-MM-DD format (default: 1990-01-01)
     --end-date      End date in YYYY-MM-DD format (default: today)
-    --api-key       FRED API key (overrides FRED_API_KEY env var)
+    --api-key       Optional FRED API key (overrides FRED_API_KEY env var);
+                    without one the public FRED CSV endpoint is used
     --output-dir    Directory to store the Parquet cache (default: data/)
     --force         Force re-download even if cache exists
 """
@@ -37,7 +38,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--start-date", default=DEFAULT_START_DATE, help="Start date YYYY-MM-DD")
     parser.add_argument("--end-date", default=DEFAULT_END_DATE, help="End date YYYY-MM-DD")
-    parser.add_argument("--api-key", default=FRED_API_KEY, help="FRED API key")
+    parser.add_argument("--api-key", default=FRED_API_KEY, help="Optional FRED API key")
     parser.add_argument("--output-dir", default="data", help="Output directory for Parquet cache")
     parser.add_argument(
         "--force", action="store_true", help="Force re-download ignoring cache"

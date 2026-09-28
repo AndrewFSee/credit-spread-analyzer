@@ -7,9 +7,9 @@ setup(
     version="0.1.0",
     description="Credit Spread Analysis & Prediction Platform",
     author="",
-    packages=find_packages(where="src"),
-    package_dir={"": "src"},
-    python_requires=">=3.9",
+    # Code imports ``src.*`` and ``config.*``, so both are installed as top-level packages.
+    packages=find_packages(include=["src", "src.*", "config", "config.*"]),
+    python_requires=">=3.10",
     install_requires=[
         "pandas>=2.0",
         "numpy>=1.24",
@@ -25,6 +25,6 @@ setup(
         "fredapi>=0.5",
         "yfinance>=0.2",
         "torch>=2.0",
-        "streamlit>=1.28",
+        "streamlit>=1.50",
     ],
 )

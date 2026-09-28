@@ -35,6 +35,8 @@ data/*.parquet
 data/*.pkl
 data/*.h5
 data/*.feather
+# Licensed / user-supplied data must never be committed
+data/external/
 
 # Environment variables
 .env
