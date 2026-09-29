@@ -318,10 +318,10 @@ Full tables are in [`reports/signal_evaluation.md`](reports/signal_evaluation.md
 
 | Horizon | Model | Period | OOS R² | Rank IC | Hit rate | Years with IC > 0 |
 |---|---|---|---|---|---|---|
-| 5 days | ensemble (recommended) | 2000–2018 | 0.114 | 0.261 | 54.5% | 16/19 |
-| 5 days | ensemble (recommended) | holdout | 0.045 | 0.215 | 54.9% | 8/8 |
+| 5 days | ensemble (recommended) | 2000–2018 | 0.113 | 0.261 | 54.6% | 16/19 |
+| 5 days | ensemble (recommended) | holdout | 0.046 | 0.215 | 54.8% | 8/8 |
 | 5 days | composite | holdout | 0.068 | 0.159 | 53.4% | 8/8 |
-| 20 days | composite (recommended) | 2000–2018 | 0.115 | 0.275 | 58.0% | 13/19 |
+| 20 days | composite (recommended) | 2000–2018 | 0.115 | 0.275 | 58.1% | 13/19 |
 | 20 days | composite (recommended) | holdout | 0.001 | 0.131 | 53.9% | 5/8 |
 
 - **5 days:** every model beat a no-change forecast in both periods.
@@ -341,21 +341,21 @@ Full tables are in [`reports/signal_evaluation.md`](reports/signal_evaluation.md
 | Series | k=0 | k=1 | k=2 |
 |---|---|---|---|
 | Δ Baa – 10y | −0.19 | −0.10 | −0.09 |
-| Δ ICE HY OAS (2023+) | −0.62 | −0.15 | 0.00 |
+| Δ ICE HY OAS (2023+) | −0.62 | −0.14 | 0.01 |
 | Vanguard HY fund excess return | 0.38 | 0.18 | 0.12 |
 | HYG excess return | 0.72 | **0.00** | 0.02 |
 
 - **Part of the Baa forecast skill reflects slow index updating.**
-  - It still carries over to the market-based ICE spreads (rank IC 0.10 for HY, 0.20 for BBB and 0.17 for IG, over 2023–2026).
-  - It barely carries over to HYG (IC 0.04–0.07).
+  - It still carries over to the market-based ICE spreads (rank IC 0.09 for HY, 0.19 for BBB and 0.16 for IG, over 2023–2026).
+  - It barely carries over to HYG (IC 0.04–0.05).
 - **Use it as a forecast of reported spreads, not as a trading signal.**
 
 #### 3. Tradable high yield (HYG − 0.85 × IEI, 5 days, next-day entry)
 
 | Model | Period | OOS R² | Rank IC | Hit rate | Years with IC > 0 |
 |---|---|---|---|---|---|
-| ensemble (recommended) | 2011–2018 | 0.007 | 0.127 | 52.8% | 8/8 |
-| ensemble (recommended) | holdout | −0.018 | 0.164 | 56.1% | 8/8 |
+| ensemble (recommended) | 2011–2018 | 0.008 | 0.129 | 52.5% | 8/8 |
+| ensemble (recommended) | holdout | −0.018 | 0.163 | 55.9% | 8/8 |
 | composite (Baa priors, reversed) | holdout | −0.002 | −0.059 | 51.0% | 2/8 |
 
 - **Weak but consistent.** The ensemble ranks the next week's HY excess return correctly in every year, but the size of the move is not predictable.
@@ -366,8 +366,8 @@ Full tables are in [`reports/signal_evaluation.md`](reports/signal_evaluation.md
 
 Adding real-time HMM regime probabilities as features left the recommended models essentially unchanged:
 
-- **Baa 5-day holdout:** R² 0.059 → 0.056, IC 0.220 → 0.227.
-- **HYG holdout:** IC 0.164 → 0.161.
+- **Baa 5-day holdout:** R² 0.061 → 0.057, IC 0.220 → 0.227.
+- **HYG holdout:** IC 0.163 → 0.160.
 - **Ridge with regime interaction terms:** it overfit.
 
 The option remains (`build_feature_matrix(..., regime_probs=...)`), but it is off by default.
@@ -396,7 +396,7 @@ The option remains (`build_feature_matrix(..., regime_probs=...)`), but it is of
 
 #### 6. With a long ICE high-yield history (optional data)
 
-Section 6 of the report re-runs the comparison whenever `hy_spread` has enough history.  With a spliced 1997+ history:
+The committed report uses public data only, so anyone can reproduce it. When a long `hy_spread` history is spliced in, `evaluate_signals.py` adds a section 6 comparing it with the Baa proxy. Results from a local run with a licensed 1997+ history:
 
 | Use | Result |
 |---|---|
