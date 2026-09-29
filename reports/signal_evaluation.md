@@ -83,8 +83,8 @@ Correlation between each series' daily move on day *t + k* and the SPY return on
 | series | from | k=0 | k=1 | k=2 | k=3 |
 |---|---|---|---|---|---|
 | Moody's Baa – 10y (Δ) | 1993-02-01 | -0.189 | -0.099 | -0.085 | -0.075 |
-| ICE HY OAS (Δ) | 1997-01-02 | -0.425 | -0.243 | -0.099 | -0.054 |
-| ICE BBB OAS (Δ) | 2023-09-27 | -0.435 | -0.274 | -0.023 | -0.019 |
+| ICE HY OAS (Δ) | 2023-10-02 | -0.622 | -0.142 | 0.008 | 0.069 |
+| ICE BBB OAS (Δ) | 2023-10-02 | -0.436 | -0.274 | -0.023 | -0.020 |
 | Vanguard HY fund excess return | 1993-02-01 | 0.383 | 0.179 | 0.124 | 0.071 |
 | HYG excess return | 2007-04-12 | 0.717 | 0.000 | 0.015 | -0.021 |
 
@@ -92,11 +92,11 @@ Rank IC of the Baa ensemble's 5-day forecast (holdout walk-forward) against othe
 
 | target | from | n | ic |
 |---|---|---|---|
-| Moody's Baa – 10y (the training target) | 2019-01-02 | 1930 | 0.215 |
-| ICE BofA HY OAS | 2019-01-02 | 1930 | 0.075 |
-| ICE BofA BBB OAS | 2023-09-26 | 739 | 0.196 |
-| ICE BofA IG OAS | 2023-09-26 | 739 | 0.164 |
-| HYG vs IEI excess return (sign flipped) | 2019-01-02 | 1929 | 0.043 |
+| Moody's Baa – 10y (the training target) | 2023-09-29 | 736 | 0.167 |
+| ICE BofA HY OAS | 2023-09-29 | 736 | 0.091 |
+| ICE BofA BBB OAS | 2023-09-29 | 736 | 0.188 |
+| ICE BofA IG OAS | 2023-09-29 | 736 | 0.156 |
+| HYG vs IEI excess return (sign flipped) | 2023-09-29 | 735 | 0.053 |
 | HYG vs IEI excess return (sign flipped) | 2019-01-02 | 1929 | 0.043 |
 
 # 3. Tradable high yield: HYG vs IEI excess return
@@ -105,14 +105,14 @@ Target: 5-day return of HYG minus 0.85 × IEI (bps), starting the day after the 
 
 | period | model | n | oos_r2 | ic | hit_rate | signal_sharpe | years_ic>0 |
 |---|---|---|---|---|---|---|---|
-| development | composite | 2012 | -0.025 | -0.125 | 0.475 | -0.323 | 0/8 |
-| development | ridge | 2012 | -0.239 | 0.146 | 0.519 | 0.550 | 7/8 |
-| development | lightgbm | 2012 | 0.005 | 0.056 | 0.501 | 0.637 | 8/8 |
-| development | ensemble | 2012 | -0.003 | 0.152 | 0.528 | 0.727 | 8/8 |
-| holdout | composite | 1929 | -0.002 | -0.055 | 0.517 | -0.228 | 2/8 |
-| holdout | ridge | 1929 | -0.060 | 0.165 | 0.552 | 1.124 | 8/8 |
-| holdout | lightgbm | 1929 | -0.006 | 0.134 | 0.571 | 0.788 | 7/8 |
-| holdout | ensemble | 1929 | 0.024 | 0.177 | 0.554 | 1.034 | 8/8 |
+| development | composite | 2012 | -0.025 | -0.124 | 0.473 | -0.411 | 1/8 |
+| development | ridge | 2012 | -0.149 | 0.109 | 0.515 | 0.706 | 7/8 |
+| development | lightgbm | 2012 | 0.009 | 0.082 | 0.516 | 0.629 | 6/8 |
+| development | ensemble | 2012 | 0.008 | 0.129 | 0.525 | 0.899 | 8/8 |
+| holdout | composite | 1929 | -0.002 | -0.059 | 0.510 | -0.288 | 2/8 |
+| holdout | ridge | 1929 | -0.210 | 0.151 | 0.548 | 0.551 | 6/8 |
+| holdout | lightgbm | 1929 | -0.013 | 0.088 | 0.554 | 0.462 | 7/8 |
+| holdout | ensemble | 1929 | -0.018 | 0.163 | 0.559 | 0.674 | 8/8 |
 
 # 4. Regime-conditional forecasts
 
@@ -124,10 +124,10 @@ Walk-forward HMM probabilities (3 states on the Baa spread, refitted yearly on p
 | holdout | Baa 5d change · ensemble without regimes | 1930 | 0.061 | 0.220 | 0.550 | 1.056 | 8/8 |
 | development | Baa 5d change · ensemble with regimes | 4779 | 0.110 | 0.244 | 0.546 | 1.441 | 15/19 |
 | holdout | Baa 5d change · ensemble with regimes | 1930 | 0.057 | 0.227 | 0.556 | 1.262 | 8/8 |
-| development | HYG 5d excess return · ensemble without regimes | 2012 | -0.003 | 0.152 | 0.528 | 0.727 | 8/8 |
-| holdout | HYG 5d excess return · ensemble without regimes | 1929 | 0.024 | 0.177 | 0.554 | 1.034 | 8/8 |
-| development | HYG 5d excess return · ensemble with regimes | 2012 | -0.116 | 0.141 | 0.523 | 0.490 | 8/8 |
-| holdout | HYG 5d excess return · ensemble with regimes | 1929 | 0.024 | 0.174 | 0.556 | 0.991 | 8/8 |
+| development | HYG 5d excess return · ensemble without regimes | 2012 | 0.008 | 0.129 | 0.525 | 0.899 | 8/8 |
+| holdout | HYG 5d excess return · ensemble without regimes | 1929 | -0.018 | 0.163 | 0.559 | 0.674 | 8/8 |
+| development | HYG 5d excess return · ensemble with regimes | 2012 | -0.056 | 0.127 | 0.517 | 0.674 | 8/8 |
+| holdout | HYG 5d excess return · ensemble with regimes | 1929 | -0.018 | 0.160 | 0.556 | 0.597 | 8/8 |
 
 # 5. Equity exposure overlays (SPY vs 3-month T-bills)
 
@@ -158,74 +158,3 @@ Sharpe ratio by sub-period:
 | z-score in/out (enter 0.5 / exit 0) | 0.302 | 0.642 | 0.527 | 0.836 | 0.287 | 0.797 |
 | 20d widening > 50bp in/out | -0.198 | 0.146 | 1.003 | 0.514 | 0.631 | 1.093 |
 | buy & hold SPY | -0.144 | 0.019 | 0.975 | 0.514 | 0.608 | 1.093 |
-
-# 6. Long ICE high-yield history vs the Moody's Baa proxy
-
-`hy_spread` holds 7472 observations (1996-12-31 → 2026-09-14), so a licensed history has been spliced in behind FRED's three-year window.  Both spreads are compared on the dates where each has walk-forward predictions.
-
-## As a forecast target
-
-| horizon | period | model | n | oos_r2 | ic | hit_rate | signal_sharpe | years_ic>0 |
-|---|---|---|---|---|---|---|---|---|
-| 5d | development | hy_spread · composite | 4279 | 0.066 | 0.148 | 0.540 | 1.231 | 8/17 |
-| 5d | development | hy_spread · ridge | 4279 | 0.079 | 0.203 | 0.546 | 1.159 | 14/17 |
-| 5d | development | hy_spread · lightgbm | 4279 | 0.145 | 0.223 | 0.555 | 1.438 | 13/17 |
-| 5d | development | hy_spread · ensemble | 4279 | 0.140 | 0.235 | 0.562 | 1.421 | 14/17 |
-| 5d | development | baa_spread · composite | 4279 | 0.128 | 0.274 | 0.545 | 1.897 | 14/17 |
-| 5d | development | baa_spread · ridge | 4279 | 0.128 | 0.267 | 0.543 | 1.292 | 14/17 |
-| 5d | development | baa_spread · lightgbm | 4279 | 0.107 | 0.258 | 0.538 | 1.384 | 14/17 |
-| 5d | development | baa_spread · ensemble | 4279 | 0.133 | 0.286 | 0.549 | 1.533 | 15/17 |
-| 5d | holdout | hy_spread · composite | 1930 | 0.007 | -0.004 | 0.511 | 0.128 | 3/8 |
-| 5d | holdout | hy_spread · ridge | 1930 | 0.029 | 0.149 | 0.563 | 0.917 | 6/8 |
-| 5d | holdout | hy_spread · lightgbm | 1930 | -0.010 | 0.147 | 0.569 | 0.770 | 8/8 |
-| 5d | holdout | hy_spread · ensemble | 1930 | 0.026 | 0.155 | 0.564 | 0.824 | 8/8 |
-| 5d | holdout | baa_spread · composite | 1930 | 0.068 | 0.159 | 0.534 | 1.019 | 8/8 |
-| 5d | holdout | baa_spread · ridge | 1930 | 0.009 | 0.208 | 0.566 | 1.479 | 8/8 |
-| 5d | holdout | baa_spread · lightgbm | 1930 | 0.032 | 0.173 | 0.538 | 0.994 | 8/8 |
-| 5d | holdout | baa_spread · ensemble | 1930 | 0.046 | 0.215 | 0.548 | 1.106 | 8/8 |
-| 20d | development | hy_spread · composite | 4279 | 0.044 | 0.118 | 0.538 | 0.710 | 7/17 |
-| 20d | development | hy_spread · ridge | 4279 | -0.041 | 0.165 | 0.532 | 0.681 | 11/17 |
-| 20d | development | hy_spread · lightgbm | 4279 | 0.093 | 0.219 | 0.545 | 0.733 | 13/17 |
-| 20d | development | hy_spread · ensemble | 4279 | 0.080 | 0.219 | 0.543 | 0.810 | 10/17 |
-| 20d | development | baa_spread · composite | 4279 | 0.127 | 0.281 | 0.581 | 0.966 | 12/17 |
-| 20d | development | baa_spread · ridge | 4279 | 0.026 | 0.200 | 0.535 | 0.418 | 12/17 |
-| 20d | development | baa_spread · lightgbm | 4279 | 0.080 | 0.230 | 0.551 | 0.646 | 12/17 |
-| 20d | development | baa_spread · ensemble | 4279 | 0.075 | 0.234 | 0.548 | 0.423 | 13/17 |
-| 20d | holdout | hy_spread · composite | 1915 | -0.027 | -0.044 | 0.500 | -0.192 | 3/8 |
-| 20d | holdout | hy_spread · ridge | 1915 | -0.450 | 0.046 | 0.502 | 0.032 | 3/8 |
-| 20d | holdout | hy_spread · lightgbm | 1915 | -0.207 | 0.036 | 0.528 | -0.200 | 3/8 |
-| 20d | holdout | hy_spread · ensemble | 1915 | -0.276 | 0.042 | 0.514 | 0.102 | 3/8 |
-| 20d | holdout | baa_spread · composite | 1915 | 0.001 | 0.131 | 0.539 | 0.442 | 5/8 |
-| 20d | holdout | baa_spread · ridge | 1915 | -0.336 | 0.178 | 0.557 | -0.207 | 6/8 |
-| 20d | holdout | baa_spread · lightgbm | 1915 | -0.127 | 0.146 | 0.542 | 0.165 | 6/8 |
-| 20d | holdout | baa_spread · ensemble | 1915 | -0.182 | 0.160 | 0.548 | -0.056 | 6/8 |
-
-## As the feature spread for the tradable HYG model
-
-| period | model | n | oos_r2 | ic | hit_rate | signal_sharpe | years_ic>0 |
-|---|---|---|---|---|---|---|---|
-| development | features on hy_spread · ridge | 2012 | -0.239 | 0.146 | 0.519 | 0.550 | 7/8 |
-| holdout | features on hy_spread · ridge | 1929 | -0.060 | 0.165 | 0.552 | 1.124 | 8/8 |
-| development | features on hy_spread · ensemble | 2012 | -0.003 | 0.152 | 0.528 | 0.727 | 8/8 |
-| holdout | features on hy_spread · ensemble | 1929 | 0.024 | 0.177 | 0.554 | 1.034 | 8/8 |
-| development | features on baa_spread · ridge | 2012 | -0.149 | 0.109 | 0.515 | 0.706 | 7/8 |
-| holdout | features on baa_spread · ridge | 1929 | -0.210 | 0.151 | 0.548 | 0.551 | 6/8 |
-| development | features on baa_spread · ensemble | 2012 | 0.008 | 0.129 | 0.528 | 0.899 | 8/8 |
-| holdout | features on baa_spread · ensemble | 1929 | -0.018 | 0.163 | 0.561 | 0.674 | 8/8 |
-
-## As the driver of the exposure overlay (from 2001, after the HY regime warm-up)
-
-| period | spread | overlay | cagr | sharpe | max_dd | avg_equity | turnover/yr | bh_sharpe |
-|---|---|---|---|---|---|---|---|---|
-| development | hy_spread | vol target 15% × (1 − P(stress)) | 8.0% | 0.666 | -14.9% | 70.5% | 1.019 | 0.311 |
-| holdout | hy_spread | vol target 15% × (1 − P(stress)) | 12.6% | 0.761 | -18.9% | 85.2% | 1.748 | 0.777 |
-| development | hy_spread | 1 − P(stress) only | 8.8% | 0.633 | -19.0% | 76.8% | 0.166 | 0.311 |
-| holdout | hy_spread | 1 − P(stress) only | 13.0% | 0.622 | -31.2% | 94.4% | 0.254 | 0.777 |
-| development | hy_spread | z-score in/out (enter 0.5 / exit 0) | 7.1% | 0.558 | -30.0% | 65.6% | 1.781 | 0.311 |
-| holdout | hy_spread | z-score in/out (enter 0.5 / exit 0) | 10.0% | 0.673 | -12.8% | 68.6% | 4.037 | 0.777 |
-| development | baa_spread | vol target 15% × (1 − P(stress)) | 6.0% | 0.533 | -14.9% | 57.2% | 0.886 | 0.311 |
-| holdout | baa_spread | vol target 15% × (1 − P(stress)) | 13.4% | 0.815 | -18.1% | 84.5% | 1.663 | 0.777 |
-| development | baa_spread | 1 − P(stress) only | 6.5% | 0.507 | -19.3% | 61.9% | 0.385 | 0.311 |
-| holdout | baa_spread | 1 − P(stress) only | 15.2% | 0.696 | -33.7% | 99.3% | 0.260 | 0.777 |
-| development | baa_spread | z-score in/out (enter 0.5 / exit 0) | 6.9% | 0.549 | -23.6% | 62.3% | 1.336 | 0.311 |
-| holdout | baa_spread | z-score in/out (enter 0.5 / exit 0) | 8.4% | 0.519 | -20.8% | 61.4% | 3.516 | 0.777 |
