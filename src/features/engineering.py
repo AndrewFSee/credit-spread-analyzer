@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 # Daily FRED columns that are published one business day after their date.
 _FRED_DAILY_COLUMNS = (
     "baa_spread", "aaa_spread", "hy_spread", "ig_spread", "bbb_spread",
+    "oas_aaa", "oas_aa", "oas_a", "oas_bb", "oas_b", "oas_ccc",
     "t10y2y", "t10y3m", "dgs10", "tbill_3m", "fed_funds",
 )
 _SPREAD_PREFERENCE = ("baa_spread", "hy_spread", "bbb_spread", "ig_spread", "aaa_spread")

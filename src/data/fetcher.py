@@ -50,7 +50,7 @@ _LOW_FREQ_FFILL_LIMIT = 70
 _EQUITY_CALENDAR_COLUMNS = ("sp500", "spy")
 _USER_AGENT = "Mozilla/5.0 (compatible; credit-spread-analyzer)"
 # Bump whenever the columns produced by fetch_all_data change; older caches are rebuilt.
-CACHE_SCHEMA_VERSION = 2
+CACHE_SCHEMA_VERSION = 3
 
 
 def _http_get(url: str, timeout: int = 60) -> bytes:

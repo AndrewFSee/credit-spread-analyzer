@@ -195,6 +195,26 @@ def run_forecasts(
     }
 
 
+def _matrix_text(matrix: pd.DataFrame, fmt: str) -> pd.DataFrame:
+    """Format a triangular matrix as text, leaving the empty cells blank."""
+    return matrix.apply(lambda col: col.map(lambda v: "" if pd.isna(v) else fmt.format(v)))
+
+
+def _diverging_css(matrix: pd.DataFrame) -> pd.DataFrame:
+    """Blue–red background for signed values (red = widening), centred on zero; blank cells stay unstyled."""
+    import matplotlib
+
+    values = matrix.to_numpy(dtype=float)
+    bound = float(np.nanmax(np.abs(values))) if np.isfinite(values).any() else 1.0
+    cmap, norm = matplotlib.colormaps["RdBu_r"], matplotlib.colors.Normalize(-(bound or 1.0), bound or 1.0)
+    css = np.full(values.shape, "", dtype=object)
+    for idx in zip(*np.where(np.isfinite(values)), strict=True):
+        r, g, b, _ = cmap(norm(values[idx]))
+        text = "#ffffff" if 0.299 * r + 0.587 * g + 0.114 * b < 0.55 else "#0b0b0b"
+        css[idx] = f"background-color: rgb({r * 255:.0f}, {g * 255:.0f}, {b * 255:.0f}); color: {text}"
+    return pd.DataFrame(css, index=matrix.index, columns=matrix.columns)
+
+
 @st.cache_data(show_spinner="Fitting HMM …")
 def fit_regimes(values: np.ndarray, n_states: int) -> tuple[np.ndarray, np.ndarray, pd.DataFrame]:
     """Fit the HMM once per dataset / state count: labels, filtered probabilities, transitions."""
@@ -246,8 +266,9 @@ if is_synthetic:
 # ---------------------------------------------------------------------------
 # Main content tabs
 # ---------------------------------------------------------------------------
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab_tiers, tab2, tab3, tab4, tab5 = st.tabs([
     "📈 Overview",
+    "🏷️ Credit Tiers",
     "🔵 Regime Analysis",
     "🔗 Leading Indicator",
     "🤖 Forecasting",
@@ -298,6 +319,104 @@ with tab1:
 
     with st.expander("Raw data preview"):
         st.dataframe(df.tail(50))
+
+# ============================================================
+# TAB – Credit Tiers
+# ============================================================
+with tab_tiers:
+    st.header("Credit Tiers")
+    try:
+        from src.analysis.credit_tiers import (
+            decompression,
+            tier_frame,
+            tier_gap_changes,
+            tier_gaps,
+            tier_snapshot,
+            widening_breadth,
+        )
+        from src.visualization.plots import SERIES_COLORS, plot_spread_with_average
+
+        tiers = tier_frame(df)
+        weeks = st.select_slider(
+            "Change window", options=[1, 2, 4, 8, 13], value=4, format_func=lambda w: f"{w} weeks",
+            help="Changes compare the latest spreads with this many weeks (5 trading days each) earlier.",
+        )
+        lookback = weeks * 5
+        snap = tier_snapshot(tiers, lookback=lookback)
+        tier_date = snap.attrs["as_of"]
+        earliest = min(snap["history_start"])
+        st.caption(
+            f"ICE BofA option-adjusted spreads in bps as of {tier_date:%Y-%m-%d}. Percentiles and averages use the "
+            f"history available here (from {earliest:%Y-%m-%d}). FRED serves only about three years of these "
+            "series; save a longer history as `data/external/oas_ccc.csv` (or `oas_b`, `oas_bb`, `oas_a`, "
+            "`oas_aa`, `oas_aaa`, `bbb_spread`) and refresh the data to extend it."
+        )
+
+        # Headline: the riskiest tier, the CCC – B gap, and how broad the widening is.
+        cards = st.columns(4)
+        if "CCC" in snap.index:
+            cards[0].metric("CCC spread", f"{snap.loc['CCC', 'spread']:,.0f} bps",
+                            f"{snap.loc['CCC', 'change']:+.0f} bps ({weeks}w)", delta_color="inverse",
+                            help=f"{snap.loc['CCC', 'percentile']:.0%} percentile of the available history.")
+        if {"CCC", "B"} <= set(tiers.columns):
+            gap = decompression(tiers)
+            cards[1].metric("CCC – B gap", f"{gap.iloc[-1]:,.0f} bps",
+                            f"average {gap.mean():,.0f}", delta_color="off", **NO_ARROW,
+                            help="Extra spread on the weakest credits. A rising gap means stress is concentrated "
+                                 "in CCC rather than spread across high yield.")
+        widening, total = widening_breadth(snap)
+        cards[2].metric("Tiers widening > 10 bps", f"{widening} of {total}",
+                        help="Breadth: stress that spreads up the ratings ladder is more significant than a "
+                             "move confined to CCC.")
+        if "BBB" in snap.index:
+            cards[3].metric("Investment grade (BBB)", f"{snap.loc['BBB', 'spread']:,.0f} bps",
+                            f"{snap.loc['BBB', 'change']:+.0f} bps ({weeks}w)", delta_color="inverse")
+
+        table = snap[["spread", "change", "average", "low", "high", "percentile"]].copy()
+        table["percentile"] = table["percentile"] * 100
+        st.dataframe(
+            table,
+            width="stretch",
+            column_config={
+                "spread": st.column_config.NumberColumn("Spread (bps)", format="%.0f"),
+                "change": st.column_config.NumberColumn(f"{weeks}-week change", format="%+.0f"),
+                "average": st.column_config.NumberColumn("Average", format="%.0f"),
+                "low": st.column_config.NumberColumn("Low", format="%.0f"),
+                "high": st.column_config.NumberColumn("High", format="%.0f"),
+                "percentile": st.column_config.ProgressColumn(
+                    "Percentile of history", min_value=0, max_value=100, format="%.0f%%"),
+            },
+        )
+
+        gap_now = tier_gaps(tiers).iloc[1:, :-1]
+        gap_chg = tier_gap_changes(tiers, lookback=lookback).iloc[1:, :-1]
+        col_left, col_right = st.columns(2)
+        with col_left:
+            st.subheader("Spread gaps between tiers")
+            st.caption("Row tier minus column tier (bps).")
+            st.dataframe(_matrix_text(gap_now, "{:.0f}"), width="stretch")
+        with col_right:
+            st.subheader(f"Change in gaps over {weeks} weeks")
+            st.caption("Red: the riskier tier widened relative to the safer one; blue: it narrowed.")
+            st.dataframe(_matrix_text(gap_chg, "{:+.0f}").style.apply(lambda _: _diverging_css(gap_chg), axis=None),
+                         width="stretch")
+
+        col_a, col_b = st.columns([1, 1])
+        chart_tier = col_a.selectbox("Tier to chart", list(tiers.columns), index=len(tiers.columns) - 1)
+        span = col_b.radio("Window", ["1Y", "2Y", "3Y", "All"], index=3, horizontal=True)
+        series = tiers[chart_tier].dropna()
+        if span != "All":
+            series = series.loc[series.index.max() - pd.DateOffset(years=int(span[0])):]
+        st.plotly_chart(plot_spread_with_average(series.rename(chart_tier), title=f"{chart_tier} spread"),
+                        width="stretch")
+        if {"CCC", "B"} <= set(tiers.columns):
+            gap_series = decompression(tiers)
+            if span != "All":
+                gap_series = gap_series.loc[gap_series.index.max() - pd.DateOffset(years=int(span[0])):]
+            st.plotly_chart(plot_spread_with_average(gap_series, title="CCC – B gap (decompression)",
+                                                     color=SERIES_COLORS[1]), width="stretch")
+    except Exception as exc:  # noqa: BLE001
+        st.warning(f"Credit-tier monitor unavailable: {exc}")
 
 # ============================================================
 # TAB 2 – Regime Analysis
