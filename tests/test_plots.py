@@ -78,6 +78,14 @@ class TestPlots(unittest.TestCase):
         fig = plot_stress_probability(probs)
         self.assertEqual(fig.layout.yaxis.tickformat, ".0%")
 
+    def test_spread_with_average(self) -> None:
+        from src.visualization.plots import plot_spread_with_average
+
+        s = pd.Series([100.0, 200.0, 300.0], index=pd.bdate_range("2026-01-01", periods=3), name="CCC")
+        fig = plot_spread_with_average(s, title="CCC")
+        self.assertEqual(fig.layout.shapes[0].y0, 200.0)
+        self.assertIn("200", fig.layout.annotations[0].text)
+
     def test_series_label_fallback(self) -> None:
         from src.visualization.plots import series_label
 

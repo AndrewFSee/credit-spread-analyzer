@@ -31,6 +31,12 @@ SERIES_LABELS = {
     "hy_spread": "ICE BofA High Yield OAS",
     "ig_spread": "ICE BofA IG OAS",
     "bbb_spread": "ICE BofA BBB OAS",
+    "oas_aaa": "ICE BofA AAA OAS",
+    "oas_aa": "ICE BofA AA OAS",
+    "oas_a": "ICE BofA A OAS",
+    "oas_bb": "ICE BofA BB OAS",
+    "oas_b": "ICE BofA B OAS",
+    "oas_ccc": "ICE BofA CCC & lower OAS",
 }
 FEATURE_LABELS = {
     "spread_chg_5": "Spread change, 5d", "spread_chg_20": "Spread change, 20d",
@@ -229,6 +235,30 @@ def plot_stress_probability(probability: pd.Series, title: str = "Real-time prob
         showlegend=False, hovermode="x unified", template="plotly_white", height=300,
         margin=dict(t=60, b=30),
     )
+    return fig
+
+
+def plot_spread_with_average(
+    series: pd.Series,
+    title: str,
+    y_title: str = "Spread (bps)",
+    color: Optional[str] = None,
+) -> Any:
+    """Line chart of one spread with a dotted reference line at its average over the plotted window."""
+    import plotly.graph_objects as go  # type: ignore
+
+    s = series.dropna()
+    avg = float(s.mean())
+    fig = go.Figure(go.Scatter(
+        x=s.index, y=s, mode="lines", name=s.name or "spread",
+        line=dict(color=color or SERIES_COLORS[0], width=1.8),
+        hovertemplate="%{y:.0f} bps<extra></extra>",
+    ))
+    fig.add_hline(y=avg, line=dict(color=BENCHMARK_COLOR, width=1, dash="dot"),
+                  annotation_text=f"average {avg:,.0f}", annotation_position="top left",
+                  annotation_font_color=BENCHMARK_COLOR)
+    fig.update_layout(title=title, yaxis_title=y_title, showlegend=False, hovermode="x unified",
+                      template="plotly_white", height=340, margin=dict(t=60, b=30))
     return fig
 
 

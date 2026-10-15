@@ -35,6 +35,13 @@ FRED_SERIES: dict[str, str] = {
     "hy_spread": "BAMLH0A0HYM2",
     "ig_spread": "BAMLC0A0CM",
     "bbb_spread": "BAMLC0A4CBBB",
+    # ICE BofA OAS by rating tier (same ~3-year limit) for the credit-tier monitor.
+    "oas_aaa": "BAMLC0A1CAAA",
+    "oas_aa": "BAMLC0A2CAA",
+    "oas_a": "BAMLC0A3CA",
+    "oas_bb": "BAMLH0A1HYBB",
+    "oas_b": "BAMLH0A2HYB",
+    "oas_ccc": "BAMLH0A3HYC",
     # Rates
     "t10y2y": "T10Y2Y",                 # 10-Year minus 2-Year Treasury spread
     "t10y3m": "T10Y3M",                 # 10-Year minus 3-Month Treasury spread
@@ -50,7 +57,17 @@ FRED_SERIES: dict[str, str] = {
 }
 
 # FRED reports these in percentage points; the fetcher converts them to basis points.
-SPREAD_COLUMNS: list[str] = ["baa_spread", "aaa_spread", "hy_spread", "ig_spread", "bbb_spread"]
+SPREAD_COLUMNS: list[str] = [
+    "baa_spread", "aaa_spread", "hy_spread", "ig_spread", "bbb_spread",
+    "oas_aaa", "oas_aa", "oas_a", "oas_bb", "oas_b", "oas_ccc",
+]
+
+# Rating tiers from safest to riskiest, mapped to their spread columns.  A longer
+# licensed history for any tier can be added as data/external/<column>.csv.
+CREDIT_TIERS: dict[str, str] = {
+    "AAA": "oas_aaa", "AA": "oas_aa", "A": "oas_a", "BBB": "bbb_spread",
+    "BB": "oas_bb", "B": "oas_b", "CCC": "oas_ccc",
+}
 
 # Calendar days between a FRED observation date and its public release.  Series
 # listed here are re-dated to their release date before being aligned to the
