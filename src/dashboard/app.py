@@ -266,9 +266,10 @@ if is_synthetic:
 # ---------------------------------------------------------------------------
 # Main content tabs
 # ---------------------------------------------------------------------------
-tab1, tab_tiers, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab_tiers, tab_fed, tab2, tab3, tab4, tab5 = st.tabs([
     "📈 Overview",
     "🏷️ Credit Tiers",
+    "🏦 Fed Liquidity",
     "🔵 Regime Analysis",
     "🔗 Leading Indicator",
     "🤖 Forecasting",
@@ -417,6 +418,82 @@ with tab_tiers:
                                                      color=SERIES_COLORS[1]), width="stretch")
     except Exception as exc:  # noqa: BLE001
         st.warning(f"Credit-tier monitor unavailable: {exc}")
+
+# ============================================================
+# TAB – Fed Liquidity
+# ============================================================
+with tab_fed:
+    st.header("Fed Liquidity")
+    try:
+        from src.analysis.fed_liquidity import event_study, fed_actions, liquidity_snapshot, net_liquidity
+        from src.visualization.plots import plot_liquidity_change, plot_liquidity_vs_spread, series_label
+
+        liq = net_liquidity(df)
+        st.caption(
+            "Net liquidity = Fed total assets − Treasury General Account − overnight reverse repo (FRED: WALCL, "
+            "WTREGEN, RRPONTSYD), dated from the Friday after each Thursday H.4.1 release. **This is context, not "
+            "a signal.** In walk-forward tests (`scripts/evaluate_fed_liquidity.py`), changes in net liquidity did not "
+            "predict spread changes, because the Fed adds liquidity while spreads are already widening. What did "
+            "stand out is crisis *backstop announcements* (March 2009, March 2020, April 2020): spreads tightened "
+            "sharply afterwards. Routine QE and QT announcements did not move spreads much."
+        )
+        fed_weeks = st.select_slider("Change window", options=[4, 13, 26, 52], value=13,
+                                     format_func=lambda w: f"{w} weeks", key="fed_weeks")
+        snap = liquidity_snapshot(liq, weeks=fed_weeks)
+        cards = st.columns(4)
+        cards[0].metric("Net liquidity", f"${snap['net'] / 1000:,.2f}T",
+                        f"{snap['net_change']:+,.0f}bn ({snap['net_change_pct']:+.1f}%, {fed_weeks}w)",
+                        help=f"As of {snap['as_of']:%Y-%m-%d}.")
+        cards[1].metric("Fed total assets", f"${snap['assets'] / 1000:,.2f}T", f"{snap['assets_change']:+,.0f}bn")
+        cards[2].metric("Treasury General Account", f"${snap['tga']:,.0f}bn", f"{snap['tga_change']:+,.0f}bn",
+                        delta_color="inverse", help="A rising TGA drains reserves from the banking system.")
+        cards[3].metric("Overnight reverse repo", f"${snap['rrp']:,.0f}bn", f"{snap['rrp_change']:+,.0f}bn",
+                        delta_color="inverse", help="Cash parked at the Fed overnight; a rising RRP drains liquidity.")
+
+        spread_options = [c for c in ("oas_ccc", "hy_spread", "oas_b", "oas_bb", "bbb_spread", "baa_spread")
+                          if c in df.columns and df[c].notna().sum() > 250]
+        col_a, col_b = st.columns([1, 1])
+        fed_spread = col_a.selectbox(
+            "Spread", spread_options, format_func=series_label, key="fed_spread",
+            index=spread_options.index(primary) if primary in spread_options else 0,
+        )
+        fed_span = col_b.radio("Window", ["3Y", "5Y", "10Y", "All"], index=3, horizontal=True, key="fed_span")
+        spread_series = df[fed_spread].dropna()
+        liq_net = liq["net"]
+        if fed_span != "All":
+            cutoff = df.index.max() - pd.DateOffset(years=int(fed_span[:-1]))
+            spread_series, liq_net = spread_series.loc[cutoff:], liq_net.loc[cutoff:]
+        st.plotly_chart(plot_liquidity_vs_spread(spread_series, liq_net, fed_actions(),
+                                                 spread_label=series_label(fed_spread)), width="stretch")
+        st.plotly_chart(plot_liquidity_change(liq_net, weeks=fed_weeks), width="stretch")
+
+        st.subheader("Spread moves after major Fed actions")
+        events = event_study(df[fed_spread], horizons=(20, 60))
+        if events.empty:
+            st.info(f"No Fed actions fall inside the {series_label(fed_spread)} history loaded here.")
+        else:
+            st.caption(
+                f"{series_label(fed_spread)} in bps. *Rank* places the next-20-day change among every 20-day change "
+                "in this history: 0% is the sharpest tightening on record, 50% is typical."
+            )
+            events["rank_20d"] = events["rank_20d"] * 100
+            st.dataframe(
+                events[["date", "action", "type", "spread", "prior_20d", "next_20d", "next_60d", "rank_20d"]],
+                width="stretch", hide_index=True,
+                column_config={
+                    "date": st.column_config.DateColumn("Date"),
+                    "action": st.column_config.TextColumn("Fed action", width="large"),
+                    "type": st.column_config.TextColumn("Type"),
+                    "spread": st.column_config.NumberColumn("Spread", format="%.0f"),
+                    "prior_20d": st.column_config.NumberColumn("Prior 20d", format="%+.0f"),
+                    "next_20d": st.column_config.NumberColumn("Next 20d", format="%+.0f"),
+                    "next_60d": st.column_config.NumberColumn("Next 60d", format="%+.0f"),
+                    "rank_20d": st.column_config.ProgressColumn("Rank (next 20d)", min_value=0, max_value=100,
+                                                                format="%.0f%%"),
+                },
+            )
+    except Exception as exc:  # noqa: BLE001
+        st.warning(f"Fed liquidity monitor unavailable: {exc}")
 
 # ============================================================
 # TAB 2 – Regime Analysis

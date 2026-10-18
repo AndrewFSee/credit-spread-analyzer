@@ -54,6 +54,10 @@ FRED_SERIES: dict[str, str] = {
     "claims": "ICSA",                   # Initial jobless claims (weekly)
     "cpi": "CPIAUCSL",                  # Consumer Price Index (monthly)
     "unrate": "UNRATE",                 # Civilian Unemployment Rate (monthly)
+    # Fed liquidity (H.4.1).  Units as published: fed_assets and tga in $ millions, on_rrp in $ billions.
+    "fed_assets": "WALCL",              # Fed total assets, weekly (Wednesday level), 2002+
+    "tga": "WTREGEN",                   # Treasury General Account at the Fed, weekly, 2002+
+    "on_rrp": "RRPONTSYD",              # Overnight reverse repo take-up, daily, 2003+
 }
 
 # FRED reports these in percentage points; the fetcher converts them to basis points.
@@ -80,6 +84,8 @@ RELEASE_LAG_DAYS: dict[str, int] = {
     "dxy": 7,        # H.10 daily rates are published weekly
     "gz_spread": 75,  # Fed GZ spread for month M (dated M-01) is posted during M+2
     "ebp": 75,
+    "fed_assets": 2,  # H.4.1: Wednesday's balance sheet is released Thursday after the close
+    "tga": 2,
 }
 
 # Public CSV sources outside FRED: {column: (url, source column, multiplier)}.

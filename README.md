@@ -26,7 +26,7 @@ Built by **Andrew See** · [GitHub](https://github.com/AndrewFSee) · [LinkedIn]
 - **Cut the worst drawdown from −55% to −18%.** A credit-aware equity overlay turned $1 into $7.90 from 2000 to 2026, against $8.30 for the S&P 500, with a Sharpe ratio of 0.61 versus 0.40.
 - **Forecast skill that survives a holdout.** The 5-day credit-spread forecast ranked outcomes correctly in 24 of 27 years, including all 8 holdout years (2019–2026) that were never used to choose models.
 - **Bias caught, not hidden.** Validation showed that part of the apparent edge came from stale index prices, so tradable claims are tested on an exchange-traded fund instead.
-- **Built like production code.** The pipeline is point-in-time, with 97 automated tests (including look-ahead regression tests), command-line tools, a reproducible evaluation report and an interactive dashboard.
+- **Built like production code.** The pipeline is point-in-time, with 102 automated tests (including look-ahead regression tests), command-line tools, a reproducible evaluation report and an interactive dashboard.
 
 ## What this project demonstrates
 
@@ -36,7 +36,7 @@ Built by **Andrew See** · [GitHub](https://github.com/AndrewFSee) · [LinkedIn]
 | **Machine learning** | Ridge, XGBoost, LightGBM, random forests, a sign-constrained factor model and ensembles; LSTM and Transformer benchmarks; SHAP explanations |
 | **Time series and regimes** | Hidden Markov models refitted yearly and filtered causally; VAR, impulse responses, Granger causality and cointegration |
 | **Data engineering** | One point-in-time pipeline across FRED, the Federal Reserve and Yahoo Finance: publication-date alignment, a versioned cache and optional licensed-data splicing |
-| **Software engineering** | Modular Python package, 97 tests, CLI tools, and scripts that regenerate every figure and table |
+| **Software engineering** | Modular Python package, 102 tests, CLI tools, and scripts that regenerate every figure and table |
 | **Communication** | A five-tab Streamlit dashboard, figures that render in light and dark mode, and written limits and caveats |
 
 ## Results
@@ -98,7 +98,7 @@ Moody's index yields and mutual-fund prices keep catching up to stock-market mov
   </tr>
 </table>
 
-Six tabs: market overview, a credit-tier monitor (AAA through CCC spreads, the gaps between tiers and how they changed), regime analysis, leading indicator and overlay backtest, forecasting (credit spread or tradable HYG), and a correlation monitor.
+Seven tabs: market overview, a credit-tier monitor (AAA through CCC spreads, the gaps between tiers and how they changed), a Fed liquidity monitor (net liquidity and spread moves after major Fed actions), regime analysis, leading indicator and overlay backtest, forecasting (credit spread or tradable HYG), and a correlation monitor.
 
 ## Quick start
 
@@ -108,7 +108,7 @@ cd credit-spread-analyzer
 pip install -r requirements.txt
 
 python scripts/run_dashboard.py   # downloads public data on first run; no API key needed
-python -m pytest                  # 97 tests on synthetic data, no network needed
+python -m pytest                  # 102 tests on synthetic data, no network needed
 ```
 
 ---
@@ -217,8 +217,9 @@ python -m pytest                  # 97 tests on synthetic data, no network neede
   - Trades execute on the next day and are only made when the target weight moves more than 10 points.
   - Costs are charged; cash earns the T-bill rate.
 - **Credit-tier monitor:** ICE BofA spreads for every rating tier from AAA to CCC, tier-to-tier gaps and their changes, percentiles, and a CCC – B "decompression" gauge.
-- **Interactive dashboard:** a 6-tab Streamlit app (Overview, Credit Tiers, Regimes, Leading Indicator, Forecasting, Correlations).
-- **CLI scripts:** `download_data.py`, `train_models.py`, `evaluate_signals.py`, `make_readme_figures.py` and `run_dashboard.py`.
+- **Fed liquidity monitor:** net liquidity (Fed assets − Treasury General Account − reverse repo), its components and recent change, with major Fed actions marked on the spread chart and an event study of what spreads did next. It was tested as a predictor and rejected (see [Signal validation](#7-fed-liquidity-context-not-a-signal)), so it is context only.
+- **Interactive dashboard:** a 7-tab Streamlit app (Overview, Credit Tiers, Fed Liquidity, Regimes, Leading Indicator, Forecasting, Correlations).
+- **CLI scripts:** `download_data.py`, `train_models.py`, `evaluate_signals.py`, `evaluate_fed_liquidity.py`, `make_readme_figures.py` and `run_dashboard.py`.
 
 </details>
 
@@ -261,6 +262,9 @@ python scripts/evaluate_signals.py \
     --data-path data/market_data_1990-01-01_<end-date>.parquet \
     --with-dl
 # → reports/signal_evaluation.md
+
+python scripts/evaluate_fed_liquidity.py     --data-path data/market_data_1990-01-01_<end-date>.parquet
+# → reports/fed_liquidity.md
 ```
 
 #### Train a model and get the latest forecast
@@ -409,6 +413,17 @@ The committed report uses public data only, so anyone can reproduce it. When a l
 
 The Baa spread remains `PRIMARY_SPREAD`, so the project behaves identically for anyone without licensed data.
 
+#### 7. Fed liquidity: context, not a signal
+
+Does the Fed injecting liquidity calm credit spreads? [`reports/fed_liquidity.md`](reports/fed_liquidity.md), generated by `scripts/evaluate_fed_liquidity.py`, tests this on a weekly panel from 2003. Net liquidity is Fed total assets − Treasury General Account − overnight reverse repo, dated from the Friday after each H.4.1 release.
+
+- **The quantity of liquidity does not predict spreads.** Across 16 regressions (Baa 4- and 13-week changes, HYG excess returns, with and without controls), no |t| reaches 2. The sign flips when 2008–09 and 2020 are excluded, and the quintile sorts are not monotonic.
+- **Why a naive chart misleads:** over the same 13 weeks, liquidity growth and spread changes correlate at +0.57. The Fed adds liquidity *because* spreads are widening.
+- **Crisis backstop announcements are different.** After the six easing actions that followed a top-5% widening, the Baa spread tightened every time over the next 20 days (median −18 bp). Comparable widenings with no Fed action had a median of +1 bp, with 48% tightening. March 23, 2020 (unlimited QE plus corporate credit facilities) was followed by one of the sharpest 20-day tightenings in the Baa history (0.1st percentile). With a licensed HY history, the same pattern is larger: a median of −178 bp across four events.
+- **CCC:** only about three years of public data, which is too short to test (correlation −0.01).
+
+Net liquidity is therefore not a model feature. The dashboard's Fed Liquidity tab shows it, its components and the event table as context.
+
 ### Methodology: avoiding look-ahead bias
 
 | Issue | Handling |
@@ -436,11 +451,13 @@ The Baa spread remains `PRIMARY_SPREAD`, so the project behaves identically for 
 | `src/models/dl_models.py` | LSTM and Transformer with leak-free scaling and early stopping |
 | `src/analysis/leading_indicator.py` | Exposure weights (vol × regime, z-score, widening) and allocation backtests |
 | `src/analysis/credit_tiers.py` | Rating-tier snapshot, tier-to-tier gaps and their changes, CCC – B decompression |
+| `src/analysis/fed_liquidity.py` | Net Fed liquidity, its recent change, a dated list of major Fed actions and an event study |
 | `src/visualization/plots.py` | Plotly / Matplotlib charts with a colour-vision-safe palette and readable labels |
-| `src/dashboard/app.py` | 5-tab Streamlit dashboard |
+| `src/dashboard/app.py` | 7-tab Streamlit dashboard |
 | `scripts/download_data.py` | CLI: fetch and cache market data |
 | `scripts/train_models.py` | CLI: train a Baa or HYG model, report CV + holdout metrics, latest forecast |
 | `scripts/evaluate_signals.py` | CLI: full walk-forward evaluation → `reports/signal_evaluation.md` |
+| `scripts/evaluate_fed_liquidity.py` | CLI: does Fed liquidity predict spreads? Regressions and event study → `reports/fed_liquidity.md` |
 | `scripts/make_readme_figures.py` | CLI: render the README figures (light and dark) from the project's own models |
 | `scripts/run_dashboard.py` | CLI: launch Streamlit dashboard |
 
@@ -457,6 +474,7 @@ The Baa spread remains `PRIMARY_SPREAD`, so the project behaves identically for 
 | FRED | `BAMLC0A1CAAA`, `BAMLC0A2CAA`, `BAMLC0A3CA`, `BAMLH0A1HYBB`, `BAMLH0A2HYB`, `BAMLH0A3HYC` | ICE BofA OAS by rating tier: AAA, AA, A, BB, B, CCC & lower (last ~3 years only) |
 | FRED | `T10Y2Y`, `T10Y3M`, `DGS10`, `DGS3MO`, `DFF` | Treasury curve, yields and Fed Funds |
 | FRED | `DTWEXBGS`, `NFCI`, `ICSA`, `CPIAUCSL`, `UNRATE` | Dollar, financial conditions, claims, CPI, unemployment |
+| FRED | `WALCL`, `WTREGEN`, `RRPONTSYD` | Fed total assets, Treasury General Account and overnight reverse repo (net liquidity) |
 | [Federal Reserve](https://www.federalreserve.gov/econres/notes/feds-notes/updating-the-recession-risk-and-the-excess-bond-premium-20161006.html) | `ebp_csv.csv` | Gilchrist–Zakrajšek spread and excess bond premium (monthly) |
 | [Yahoo Finance](https://finance.yahoo.com) | `^GSPC`, `SPY` | S&P 500 index and total-return ETF |
 | Yahoo Finance | `^VIX`, `^MOVE` | Equity and bond implied volatility |

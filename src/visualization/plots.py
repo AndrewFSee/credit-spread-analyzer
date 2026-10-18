@@ -262,6 +262,64 @@ def plot_spread_with_average(
     return fig
 
 
+def plot_liquidity_vs_spread(
+    spread: pd.Series,
+    net_liquidity: pd.Series,
+    actions: Optional[list] = None,
+    spread_label: str = "Spread (bps)",
+) -> Any:
+    """Spread (top) and Fed net liquidity in $ trillions (bottom) on a shared time axis, with Fed actions marked."""
+    import plotly.graph_objects as go  # type: ignore
+    from plotly.subplots import make_subplots  # type: ignore
+
+    s, liq = spread.dropna(), net_liquidity.dropna() / 1000.0
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.55, 0.45], vertical_spacing=0.07)
+    fig.add_trace(go.Scatter(x=s.index, y=s, mode="lines", name=spread_label,
+                             line=dict(color=SERIES_COLORS[0], width=1.6),
+                             hovertemplate="%{y:.0f} bps<extra></extra>"), row=1, col=1)
+    fig.add_trace(go.Scatter(x=liq.index, y=liq, mode="lines", name="Net liquidity",
+                             line=dict(color="#184f95", width=1.6),
+                             hovertemplate="$%{y:.2f}T<extra></extra>"), row=2, col=1)
+    colours = {"ease": SERIES_COLORS[2], "tighten": SERIES_COLORS[1]}
+    names = {"ease": "Fed easing / backstop", "tighten": "Fed tightening"}
+    start, end = min(s.index[0], liq.index[0]), max(s.index[-1], liq.index[-1])
+    for kind in ("ease", "tighten"):
+        hits = [a for a in (actions or []) if a.kind == kind and start <= pd.Timestamp(a.date) <= end]
+        for a in hits:
+            fig.add_shape(type="line", x0=pd.Timestamp(a.date), x1=pd.Timestamp(a.date), xref="x",
+                          y0=0, y1=1, yref="paper", line=dict(color=colours[kind], width=1, dash="dot"))
+        if hits:  # hoverable markers along the top of the spread panel, one legend entry per kind
+            y_top = float(s.max()) if not s.empty else 0.0
+            fig.add_trace(go.Scatter(
+                x=[pd.Timestamp(a.date) for a in hits], y=[y_top] * len(hits), mode="markers",
+                marker=dict(symbol="triangle-down", size=9, color=colours[kind]), name=names[kind],
+                text=[a.label for a in hits], hovertemplate="%{x|%Y-%m-%d}: %{text}<extra></extra>",
+            ), row=1, col=1)
+    fig.update_yaxes(title_text="bps", row=1, col=1)
+    fig.update_yaxes(title_text="$ trillions", row=2, col=1)
+    fig.update_layout(title="Credit spread and Fed net liquidity", hovermode="x unified",
+                      legend=_legend_top(), template="plotly_white", height=560, margin=dict(t=90))
+    return fig
+
+
+def plot_liquidity_change(net_liquidity: pd.Series, weeks: int = 13) -> Any:
+    """Change in net liquidity over *weeks* ($ billions): added above zero, drained below."""
+    import plotly.graph_objects as go  # type: ignore
+
+    chg = (net_liquidity - net_liquidity.shift(weeks * 5)).dropna()
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=chg.index, y=chg.clip(lower=0), mode="lines", name="Added",
+                             line=dict(color=SERIES_COLORS[2], width=0.8), fill="tozeroy",
+                             fillcolor="rgba(27, 175, 122, 0.25)", hovertemplate="%{y:+,.0f}bn<extra></extra>"))
+    fig.add_trace(go.Scatter(x=chg.index, y=chg.clip(upper=0), mode="lines", name="Drained",
+                             line=dict(color=SERIES_COLORS[1], width=0.8), fill="tozeroy",
+                             fillcolor="rgba(235, 104, 52, 0.25)", hovertemplate="%{y:+,.0f}bn<extra></extra>"))
+    fig.update_layout(title=f"{weeks}-week change in net liquidity", yaxis_title="$ billions",
+                      hovermode="x unified", legend=_legend_top(), template="plotly_white", height=320,
+                      margin=dict(t=80, b=30))
+    return fig
+
+
 def plot_correlation_heatmap(
     df: pd.DataFrame,
     window: int = 60,
