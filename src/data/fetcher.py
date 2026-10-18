@@ -125,7 +125,7 @@ def fetch_fred_data(
         logger.warning("No FRED data fetched – returning empty DataFrame.")
         return pd.DataFrame()
 
-    df = pd.concat(frames.values(), axis=1)
+    df = pd.concat(frames.values(), axis=1, sort=True)
     df.index = pd.to_datetime(df.index)
     df.sort_index(inplace=True)
     return df
@@ -172,7 +172,7 @@ def fetch_external_csv_data(
 
     if not frames:
         return pd.DataFrame()
-    return pd.concat(frames.values(), axis=1).sort_index()
+    return pd.concat(frames.values(), axis=1, sort=True)
 
 
 def load_local_spread_history(
@@ -318,7 +318,7 @@ def fetch_yahoo_data(
         logger.warning("No Yahoo Finance data fetched – returning empty DataFrame.")
         return pd.DataFrame()
 
-    df = pd.concat(frames.values(), axis=1)
+    df = pd.concat(frames.values(), axis=1, sort=True)
     df.sort_index(inplace=True)
     return add_returns(df, list(frames.keys()))
 
