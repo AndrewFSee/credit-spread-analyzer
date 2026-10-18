@@ -86,6 +86,22 @@ class TestPlots(unittest.TestCase):
         self.assertEqual(fig.layout.shapes[0].y0, 200.0)
         self.assertIn("200", fig.layout.annotations[0].text)
 
+    def test_liquidity_charts(self) -> None:
+        from src.analysis.fed_liquidity import FedAction
+        from src.visualization.plots import plot_liquidity_change, plot_liquidity_vs_spread
+
+        idx = pd.bdate_range("2020-01-01", periods=300)
+        spread = pd.Series(np.linspace(400, 600, 300), index=idx)
+        liq = pd.Series(np.linspace(5000, 4000, 300), index=idx)
+        actions = [FedAction("2020-03-23", "backstop", "ease"), FedAction("2020-06-01", "qt", "tighten"),
+                   FedAction("1999-01-01", "out of range", "ease")]
+        fig = plot_liquidity_vs_spread(spread, liq, actions)
+        self.assertEqual([t.name for t in fig.data][2:], ["Fed easing / backstop", "Fed tightening"])
+        self.assertAlmostEqual(float(fig.data[1].y[0]), 5.0)   # $ trillions
+        self.assertEqual(len(fig.layout.shapes), 2)           # out-of-range action not drawn
+        chg = plot_liquidity_change(liq, weeks=4)
+        self.assertLessEqual(float(max(chg.data[1].y)), 0.0)
+
     def test_series_label_fallback(self) -> None:
         from src.visualization.plots import series_label
 
